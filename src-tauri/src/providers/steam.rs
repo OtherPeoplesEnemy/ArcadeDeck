@@ -54,6 +54,7 @@ pub fn scan() -> Result<Vec<Game>, String> {
                 args: Vec::new(),
                 steam_app_id: Some(appid.clone()),
                 art: find_art(&root, &appid),
+                hidden: false,
             });
         }
     }

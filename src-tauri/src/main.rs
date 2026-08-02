@@ -45,9 +45,41 @@ fn quit_app(app: AppHandle) {
     app.exit(0);
 }
 
+#[tauri::command]
+fn set_custom_art(game_id: String, source: String) -> Result<(), String> {
+    let ext = std::path::Path::new(&source)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    if !["png", "jpg", "jpeg"].contains(&ext.as_str()) {
+        return Err("unsupported image type (use png or jpg)".into());
+    }
+    let dir = config::config_dir().join("art");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let base = providers::sanitize_id(&game_id);
+    for e in ["png", "jpg", "jpeg"] {
+        let _ = std::fs::remove_file(dir.join(format!("{base}.{e}")));
+    }
+    std::fs::copy(&source, dir.join(format!("{base}.{ext}")))
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn remove_custom_art(game_id: String) -> Result<(), String> {
+    let dir = config::config_dir().join("art");
+    let base = providers::sanitize_id(&game_id);
+    for e in ["png", "jpg", "jpeg"] {
+        let _ = std::fs::remove_file(dir.join(format!("{base}.{e}")));
+    }
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             input::start(app.handle().clone());
             Ok(())
@@ -59,7 +91,9 @@ fn main() {
             get_full_config,
             save_config,
             get_attract_delay,
-            quit_app
+            quit_app,
+            set_custom_art,
+            remove_custom_art
         ])
         .run(tauri::generate_context!())
         .expect("error while running ArcadeDeck");

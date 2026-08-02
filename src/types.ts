@@ -7,6 +7,7 @@ export interface Game {
   args: string[];
   steamAppId: string | null;
   art: string | null;
+  hidden: boolean;
 }
 
 export type Action =
@@ -57,6 +58,7 @@ export interface AppConfig {
   systems: SystemConfig[];
   attract_after_secs: number;
   ui: UiConfig;
+  hidden_games: string[];
 }
 
 export const emptyPlatformPath = (): PlatformPath => ({

@@ -36,6 +36,18 @@ To force a MAME title-cache refresh, delete `mame_titles.json` next to the confi
 
 "Start" means whatever your encoder reports as the gamepad Start button (☰ on Xbox pads, Options on PlayStation). Because cheap encoders disagree about this, the Select and Guide buttons open settings too, and keyboard `1`, `2`, and `F1` all work. Exiting shows a hold-to-confirm bar so it can't happen by accident; there's also an Exit entry at the bottom of the settings menu.
 
+## Mouse support
+
+The cursor appears when the mouse moves and hides after 3 seconds idle. Everything is clickable: side tiles select, the center tile launches, footer items open settings or exit (exit takes two clicks), and the whole settings menu works by mouse — including ◀ ▶ arrows on adjustable values.
+
+**Right-click any game tile** for the per-game menu:
+
+- **Set custom image…** — pick a png/jpg; it's copied to the override folder (`config dir/art/`) and wins over Steam or scraped art from then on
+- **Remove custom image** — reverts to whatever the provider found
+- **Hide game** — removes it from the wheel immediately
+
+Hidden games can be brought back in **Settings → Manage game list**, which shows everything (including hidden entries, dimmed) and toggles by click or Ⓐ. Hiding never touches files — it only filters the wheel.
+
 ## Settings menu
 
 Press **Start** (or `1`) on the wheel to open settings — fully joystick-navigable:

@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useEffect,
   useImperativeHandle,
   useRef,
   useState,
@@ -7,10 +8,10 @@ import {
 import type {
   Action,
   AppConfig,
+  Game,
   MameConfig,
   SystemConfig,
 } from "../types";
-import { emptyPlatformPath } from "../types";
 
 export interface SettingsHandle {
   handleAction: (action: Action) => void;
@@ -19,6 +20,7 @@ export interface SettingsHandle {
 interface Props {
   config: AppConfig;
   configPath: string;
+  games: Game[];
   onSave: (cfg: AppConfig) => void;
   onCancel: () => void;
   onQuit: () => void;
@@ -27,13 +29,14 @@ interface Props {
 type View =
   | { kind: "menu" }
   | { kind: "mame" }
-  | { kind: "system"; editIndex: number | null };
+  | { kind: "system"; editIndex: number | null }
+  | { kind: "games" };
 
 interface Row {
   id: string;
   label: string;
   value?: string;
-  hint?: string;
+  adjustable?: boolean;
   danger?: boolean;
 }
 
@@ -92,7 +95,7 @@ const orNull = (s: string) => (s.trim() ? s.trim() : null);
 /* ---------- component ---------- */
 
 const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
-  { config, configPath, onSave, onCancel, onQuit },
+  { config, configPath, games, onSave, onCancel, onQuit },
   ref
 ) {
   const [draft, setDraft] = useState<AppConfig>(() =>
@@ -103,6 +106,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
   const [confirmRemove, setConfirmRemove] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(blankForm);
   const fieldRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const rowRefs = useRef<(HTMLLIElement | null)[]>([]);
 
   /* ----- menu rows ----- */
 
@@ -111,19 +115,19 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       id: "steam",
       label: "Steam library",
       value: draft.steam.enabled ? "ON" : "OFF",
-      hint: "◀ ▶ toggle",
+      adjustable: true,
     },
     {
       id: "attract",
       label: "Attract mode after",
       value: `${draft.attract_after_secs}s`,
-      hint: "◀ ▶ adjust",
+      adjustable: true,
     },
     {
       id: "tiles",
       label: "Tile size",
       value: `${Math.round(draft.ui.tile_scale * 100)}%`,
-      hint: "◀ ▶ adjust",
+      adjustable: true,
     },
     {
       id: "mame",
@@ -133,10 +137,15 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
     ...draft.systems.map((s, i) => ({
       id: `sys-${i}`,
       label: `System: ${s.name}`,
-      value: confirmRemove === i ? "press Ⓐ again to remove" : "edit / ◀ remove",
+      value: confirmRemove === i ? "press Ⓐ / click again to remove" : "edit · ◀ remove",
       danger: confirmRemove === i,
     })),
     { id: "add", label: "+ Add emulator system" },
+    {
+      id: "games",
+      label: "Manage game list",
+      value: `${draft.hidden_games.length} hidden`,
+    },
     { id: "rescan", label: "Save & rescan library" },
     { id: "cancel", label: "Cancel (discard changes)" },
     { id: "quit", label: "Exit ArcadeDeck", danger: true },
@@ -166,10 +175,19 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
           { key: "artLinux", label: "Art folder (Linux)" },
         ];
 
-  const formButtonCount = 2; // Save, Back
-  const formRowCount = formFields.length + formButtonCount;
+  const formRowCount = formFields.length + 2; // + Save, Back
+  const gamesRowCount = games.length + 1; // + Back
 
   /* ----- actions ----- */
+
+  const toggleHidden = (game: Game) => {
+    setDraft((d) => {
+      const hidden = d.hidden_games.includes(game.id)
+        ? d.hidden_games.filter((id) => id !== game.id)
+        : [...d.hidden_games, game.id];
+      return { ...d, hidden_games: hidden };
+    });
+  };
 
   const commitForm = () => {
     if (view.kind === "mame") {
@@ -181,6 +199,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       };
       setDraft((d) => ({ ...d, mame }));
     } else if (view.kind === "system") {
+      const editIndex = view.editIndex;
       const sys: SystemConfig = {
         name: form.name.trim() || "Custom",
         emulator: { windows: orNull(form.execWin), linux: orNull(form.execLinux) },
@@ -194,8 +213,8 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       };
       setDraft((d) => {
         const systems = [...d.systems];
-        if (view.editIndex === null) systems.push(sys);
-        else systems[view.editIndex] = sys;
+        if (editIndex === null) systems.push(sys);
+        else systems[editIndex] = sys;
         return { ...d, systems };
       });
     }
@@ -204,7 +223,9 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
   };
 
   const activateMenuRow = (row: Row) => {
-    if (row.id === "mame") {
+    if (row.id === "steam" || row.id === "attract" || row.id === "tiles") {
+      adjustMenuRow(row, 1); // mouse click cycles adjustable rows
+    } else if (row.id === "mame") {
       setForm(formFromMame(draft.mame));
       setView({ kind: "mame" });
       setCursor(0);
@@ -223,6 +244,9 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
         setView({ kind: "system", editIndex: i });
         setCursor(0);
       }
+    } else if (row.id === "games") {
+      setView({ kind: "games" });
+      setCursor(0);
     } else if (row.id === "rescan") {
       onSave(draft);
     } else if (row.id === "cancel") {
@@ -263,6 +287,20 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
         else if (action === "right") adjustMenuRow(menuRows[cursor], 1);
         else if (action === "select") activateMenuRow(menuRows[cursor]);
         else if (action === "back" || action === "start") onCancel();
+      } else if (view.kind === "games") {
+        if (action === "up") setCursor((c) => (c - 1 + gamesRowCount) % gamesRowCount);
+        else if (action === "down") setCursor((c) => (c + 1) % gamesRowCount);
+        else if (action === "select") {
+          if (cursor === games.length) {
+            setView({ kind: "menu" });
+            setCursor(0);
+          } else {
+            toggleHidden(games[cursor]);
+          }
+        } else if (action === "back") {
+          setView({ kind: "menu" });
+          setCursor(0);
+        }
       } else {
         // form view
         if (action === "up") setCursor((c) => (c - 1 + formRowCount) % formRowCount);
@@ -273,8 +311,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
             setView({ kind: "menu" });
             setCursor(0);
           } else {
-            // Enter on a field: move to the next row (typing flow)
-            setCursor((c) => c + 1);
+            setCursor((c) => c + 1); // Enter on a field: next row
           }
         } else if (action === "back") {
           setView({ kind: "menu" });
@@ -284,22 +321,40 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
     },
   }));
 
-  /* ----- focus the active text field ----- */
-  if (view.kind !== "menu") {
-    // Runs during render; safe because it's idempotent focus management.
-    queueMicrotask(() => {
+  /* ----- focus / scroll management ----- */
+
+  useEffect(() => {
+    if (view.kind === "mame" || view.kind === "system") {
       if (cursor < formFields.length) fieldRefs.current[cursor]?.focus();
       else (document.activeElement as HTMLElement | null)?.blur();
-    });
-  }
+    } else if (view.kind === "games") {
+      rowRefs.current[cursor]?.scrollIntoView({ block: "nearest" });
+    }
+  }, [view.kind, cursor, formFields.length]);
 
   /* ----- render ----- */
+
+  const header = (title: string) => (
+    <div className="settings__headrow">
+      <div className="settings__header">{title}</div>
+      <button
+        className="settings__close"
+        onClick={() =>
+          view.kind === "menu"
+            ? onCancel()
+            : (setView({ kind: "menu" }), setCursor(0))
+        }
+      >
+        ✕
+      </button>
+    </div>
+  );
 
   if (view.kind === "menu") {
     return (
       <div className="settings">
         <div className="settings__panel">
-          <div className="settings__header">SETTINGS</div>
+          {header("SETTINGS")}
           <ul className="settings__list">
             {menuRows.map((row, i) => (
               <li
@@ -307,13 +362,34 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
                 className={`settings__row ${i === cursor ? "settings__row--active" : ""} ${
                   row.danger ? "settings__row--danger" : ""
                 }`}
+                onMouseEnter={() => setCursor(i)}
+                onClick={() => activateMenuRow(row)}
               >
                 <span>{row.label}</span>
                 <span className="settings__value">
+                  {row.adjustable && (
+                    <button
+                      className="settings__arrow"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        adjustMenuRow(row, -1);
+                      }}
+                    >
+                      ◀
+                    </button>
+                  )}
                   {row.value}
-                  {i === cursor && row.hint ? (
-                    <em className="settings__hint"> {row.hint}</em>
-                  ) : null}
+                  {row.adjustable && (
+                    <button
+                      className="settings__arrow"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        adjustMenuRow(row, 1);
+                      }}
+                    >
+                      ▶
+                    </button>
+                  )}
                 </span>
               </li>
             ))}
@@ -324,18 +400,71 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
     );
   }
 
+  if (view.kind === "games") {
+    return (
+      <div className="settings">
+        <div className="settings__panel">
+          {header("MANAGE GAME LIST")}
+          <div className="settings__note">
+            Click or press Ⓐ to hide/unhide a game. Hidden games stay installed —
+            they just leave the wheel.
+          </div>
+          <ul className="settings__list settings__list--scroll">
+            {games.map((g, i) => {
+              const hidden = draft.hidden_games.includes(g.id);
+              return (
+                <li
+                  key={g.id}
+                  ref={(el) => {
+                    rowRefs.current[i] = el;
+                  }}
+                  className={`settings__row ${i === cursor ? "settings__row--active" : ""} ${
+                    hidden ? "settings__row--dim" : ""
+                  }`}
+                  onMouseEnter={() => setCursor(i)}
+                  onClick={() => toggleHidden(g)}
+                >
+                  <span>
+                    {g.title}
+                    <em className="settings__sys"> {g.system}</em>
+                  </span>
+                  <span className="settings__value">
+                    {hidden ? "HIDDEN" : "shown"}
+                  </span>
+                </li>
+              );
+            })}
+            <li
+              ref={(el) => {
+                rowRefs.current[games.length] = el;
+              }}
+              className={`settings__row ${cursor === games.length ? "settings__row--active" : ""}`}
+              onMouseEnter={() => setCursor(games.length)}
+              onClick={() => {
+                setView({ kind: "menu" });
+                setCursor(0);
+              }}
+            >
+              <span>Back</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="settings">
       <div className="settings__panel">
-        <div className="settings__header">
-          {view.kind === "mame"
+        {header(
+          view.kind === "mame"
             ? "MAME SETUP"
             : view.editIndex === null
               ? "ADD SYSTEM"
-              : "EDIT SYSTEM"}
-        </div>
+              : "EDIT SYSTEM"
+        )}
         <div className="settings__note">
-          Keyboard required for text entry. Leave a platform's paths blank if unused.
+          Type or paste paths. Leave a platform's paths blank if unused.
         </div>
         <ul className="settings__list">
           {formFields.map((f, i) => (
@@ -364,6 +493,8 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
             className={`settings__row ${
               cursor === formFields.length ? "settings__row--active" : ""
             }`}
+            onMouseEnter={() => setCursor(formFields.length)}
+            onClick={commitForm}
           >
             <span>Save {view.kind === "mame" ? "MAME setup" : "system"}</span>
           </li>
@@ -371,6 +502,11 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
             className={`settings__row ${
               cursor === formFields.length + 1 ? "settings__row--active" : ""
             }`}
+            onMouseEnter={() => setCursor(formFields.length + 1)}
+            onClick={() => {
+              setView({ kind: "menu" });
+              setCursor(0);
+            }}
           >
             <span>Back</span>
           </li>

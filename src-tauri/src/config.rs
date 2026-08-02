@@ -89,6 +89,9 @@ pub struct AppConfig {
     pub attract_after_secs: u64,
     #[serde(default)]
     pub ui: UiConfig,
+    /// Game ids the user has hidden from the wheel.
+    #[serde(default)]
+    pub hidden_games: Vec<String>,
 }
 
 impl Default for AppConfig {
@@ -101,6 +104,7 @@ impl Default for AppConfig {
             // trigger instantly. Never again.
             attract_after_secs: default_attract_secs(),
             ui: UiConfig::default(),
+            hidden_games: Vec::new(),
         }
     }
 }

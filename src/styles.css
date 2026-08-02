@@ -29,7 +29,12 @@ body,
   overflow: hidden;
   background: var(--bg);
   color: #e8ecf8;
-  cursor: none; /* it's a cabinet */
+}
+
+/* Cursor shows on mouse movement, hides after 3s idle (see App) */
+body.cursor-hidden,
+body.cursor-hidden * {
+  cursor: none !important;
 }
 
 .app {
@@ -436,13 +441,7 @@ body,
   word-break: break-all;
 }
 
-/* Settings panel is UI, not a game screen — restore the pointer there */
-.settings,
-.settings * {
-  cursor: default;
-}
 .settings input {
-  cursor: text;
   user-select: text;
 }
 
@@ -493,4 +492,161 @@ body,
   to {
     transform: scaleX(1);
   }
+}
+
+/* ---- Mouse affordances ---- */
+.tile {
+  cursor: pointer;
+}
+
+.controls__btn {
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.controls__btn:hover {
+  color: var(--phosphor);
+}
+.controls__btn--armed {
+  color: var(--magenta);
+}
+
+.settings__row {
+  cursor: pointer;
+}
+
+.settings__headrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.settings__close {
+  font-family: var(--utility);
+  font-size: 18px;
+  color: var(--steel);
+  background: none;
+  border: 1px solid rgba(107, 117, 144, 0.4);
+  border-radius: 6px;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+}
+.settings__close:hover {
+  color: #fff;
+  border-color: var(--phosphor);
+}
+
+.settings__arrow {
+  font: inherit;
+  color: var(--steel);
+  background: none;
+  border: none;
+  padding: 0 8px;
+  cursor: pointer;
+}
+.settings__arrow:hover {
+  color: var(--phosphor);
+}
+
+.settings__list--scroll {
+  max-height: 54vh;
+  overflow-y: auto;
+}
+
+.settings__row--dim {
+  opacity: 0.45;
+}
+
+.settings__sys {
+  font-style: normal;
+  color: var(--steel);
+  font-size: 12px;
+  margin-left: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+/* ---- Game context menu (right-click) ---- */
+.ctx-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 700;
+}
+
+.ctx-menu {
+  position: fixed;
+  z-index: 710;
+  min-width: 240px;
+  background: var(--bg-raise);
+  border: 1px solid rgba(61, 245, 255, 0.3);
+  border-radius: 10px;
+  padding: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ctx-menu__title {
+  font-family: var(--utility);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--steel);
+  text-transform: uppercase;
+  padding: 8px 12px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+
+.ctx-menu button {
+  font-family: var(--utility);
+  font-size: 15px;
+  text-align: left;
+  color: #e8ecf8;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.ctx-menu button:hover {
+  background: rgba(61, 245, 255, 0.1);
+  color: #fff;
+}
+.ctx-menu .ctx-menu__danger:hover {
+  background: rgba(255, 61, 174, 0.12);
+  color: var(--magenta);
+}
+
+/* ---- Playing-screen escape hatch ---- */
+.playing__hint {
+  margin-top: 42px;
+  font-family: var(--utility);
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: var(--steel);
+}
+
+.playing__escape {
+  margin-top: 14px;
+  font-family: var(--utility);
+  font-size: 14px;
+  letter-spacing: 0.3em;
+  color: var(--phosphor);
+  background: none;
+  border: 1px solid rgba(61, 245, 255, 0.35);
+  border-radius: 8px;
+  padding: 12px 26px;
+  cursor: pointer;
+}
+.playing__escape:hover {
+  background: rgba(61, 245, 255, 0.08);
+  color: #fff;
 }

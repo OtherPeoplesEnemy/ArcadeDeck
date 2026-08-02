@@ -52,6 +52,7 @@ pub fn scan(cfg: &SystemConfig) -> Result<Vec<Game>, String> {
             args,
             steam_app_id: None,
             art: art_path.as_deref().and_then(|a| find_art(a, stem)),
+            hidden: false,
         });
     }
     Ok(games)

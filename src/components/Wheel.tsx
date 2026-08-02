@@ -8,6 +8,10 @@ interface Props {
   games: Game[];
   selected: number;
   tileScale: number;
+  /** Click: side tile selects it, center tile launches. */
+  onTileClick: (offset: number) => void;
+  /** Right-click a tile: open the game context menu. */
+  onTileContext: (game: Game, x: number, y: number) => void;
 }
 
 /** Deterministic hue per game so art-less tiles still look intentional. */
@@ -21,10 +25,14 @@ function Tile({
   game,
   offset,
   spacing,
+  onClick,
+  onContext,
 }: {
   game: Game;
   offset: number;
   spacing: number;
+  onClick: (offset: number) => void;
+  onContext: (game: Game, x: number, y: number) => void;
 }) {
   const abs = Math.abs(offset);
   const style: React.CSSProperties = {
@@ -35,7 +43,15 @@ function Tile({
     zIndex: 100 - abs,
   };
   return (
-    <div className={`tile ${offset === 0 ? "tile--selected" : ""}`} style={style}>
+    <div
+      className={`tile ${offset === 0 ? "tile--selected" : ""}`}
+      style={style}
+      onClick={() => onClick(offset)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onContext(game, e.clientX, e.clientY);
+      }}
+    >
       {game.art ? (
         <img className="tile__art" src={convertFileSrc(game.art)} alt="" draggable={false} />
       ) : (
@@ -50,7 +66,13 @@ function Tile({
   );
 }
 
-export default function Wheel({ games, selected, tileScale }: Props) {
+export default function Wheel({
+  games,
+  selected,
+  tileScale,
+  onTileClick,
+  onTileContext,
+}: Props) {
   if (games.length === 0) return null;
   const current = games[selected];
   const spacing = BASE_SPACING * tileScale;
@@ -70,13 +92,17 @@ export default function Wheel({ games, selected, tileScale }: Props) {
   }
 
   return (
-    <div
-      className="wheel"
-      style={{ ["--tile-scale" as string]: tileScale }}
-    >
+    <div className="wheel" style={{ ["--tile-scale" as string]: tileScale }}>
       <div className="wheel__track">
         {window_.map(({ game, offset }) => (
-          <Tile key={game.id} game={game} offset={offset} spacing={spacing} />
+          <Tile
+            key={game.id}
+            game={game}
+            offset={offset}
+            spacing={spacing}
+            onClick={onTileClick}
+            onContext={onTileContext}
+          />
         ))}
       </div>
       <div className="wheel__info">
