@@ -214,6 +214,8 @@ body.cursor-hidden * {
 .attract {
   position: fixed;
   inset: 0;
+  z-index: 3;
+  background: var(--bg);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -840,4 +842,27 @@ body.cursor-hidden * {
 .systems,
 .controls {
   position: fixed;
+}
+
+/* ---- Custom wallpaper background (static: painted once) ---- */
+.bg-image {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+.bg-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* keep the UI readable over any wallpaper */
+.bg-image::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 50% 55%,
+    rgba(7, 8, 15, 0.35) 0%,
+    rgba(7, 8, 15, 0.75) 100%
+  );
 }

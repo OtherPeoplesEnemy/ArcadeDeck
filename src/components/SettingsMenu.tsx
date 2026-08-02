@@ -143,6 +143,28 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       adjustable: true,
     },
     {
+      id: "bg",
+      label: "Background",
+      value:
+        draft.ui.background === "grid"
+          ? "Tron grid"
+          : draft.ui.background === "image"
+            ? "Custom image"
+            : "Off",
+      adjustable: true,
+    },
+    ...(draft.ui.background === "image"
+      ? [
+          {
+            id: "bg-image",
+            label: "Background image",
+            value: draft.ui.background_image
+              ? basename(draft.ui.background_image)
+              : "not set — press Ⓐ",
+          },
+        ]
+      : []),
+    {
       id: "sounds",
       label: "Sound",
       value: draft.sounds.enabled ? "ON" : "OFF",
@@ -351,7 +373,25 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
   };
 
   const activateMenuRow = (row: Row) => {
+    if (row.id === "bg-image") {
+      void (async () => {
+        const file = await openFileDialog({
+          multiple: false,
+          filters: [
+            { name: "Images", extensions: ["png", "jpg", "jpeg", "webp"] },
+          ],
+        }).catch(() => null);
+        if (typeof file === "string") {
+          setDraft((d) => ({
+            ...d,
+            ui: { ...d.ui, background_image: file },
+          }));
+        }
+      })();
+      return;
+    }
     if (
+      row.id === "bg" ||
       row.id === "steam" ||
       row.id === "attract" ||
       row.id === "tiles" ||
@@ -418,7 +458,18 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
     }
   };
 
+  const BG_MODES = ["grid", "image", "none"];
+
   const adjustMenuRow = (row: Row, dir: -1 | 1) => {
+    if (row.id === "bg") {
+      setDraft((d) => {
+        const i = BG_MODES.indexOf(d.ui.background);
+        const next =
+          BG_MODES[(Math.max(0, i) + dir + BG_MODES.length) % BG_MODES.length];
+        return { ...d, ui: { ...d.ui, background: next } };
+      });
+      return;
+    }
     if (row.id === "sounds") {
       setDraft((d) => ({ ...d, sounds: { ...d.sounds, enabled: !d.sounds.enabled } }));
       return;

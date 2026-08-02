@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
@@ -15,7 +15,7 @@ const FALLBACK_CONFIG: AppConfig = {
   mame: null,
   systems: [],
   attract_after_secs: 45,
-  ui: { tile_scale: 1.0 },
+  ui: { tile_scale: 1.0, background: "grid", background_image: null },
   hidden_games: [],
   sounds: {
     enabled: true,
@@ -417,21 +417,32 @@ export default function App() {
     exitArmTimer.current = window.setTimeout(() => setExitArmed(false), 3000);
   }, [exitArmed]);
 
-  const gridPaused =
-    mode === "playing" ||
-    (mode === "attract" && config.attract.videos.length > 0);
+  // Attract fully covers the background now, so pause the grid there too —
+  // and always while a game runs.
+  const gridPaused = mode === "playing" || mode === "attract";
 
   return (
     <div className="app">
-      <div
-        className={`grid-bg ${gridPaused ? "grid-bg--paused" : ""}`}
-        aria-hidden="true"
-      >
-        <div className="grid-bg__sun" />
-        <div className="grid-bg__ceiling" />
-        <div className="grid-bg__floor" />
-        <div className="grid-bg__horizon" />
-      </div>
+      {config.ui.background === "grid" && (
+        <div
+          className={`grid-bg ${gridPaused ? "grid-bg--paused" : ""}`}
+          aria-hidden="true"
+        >
+          <div className="grid-bg__sun" />
+          <div className="grid-bg__ceiling" />
+          <div className="grid-bg__floor" />
+          <div className="grid-bg__horizon" />
+        </div>
+      )}
+      {config.ui.background === "image" && config.ui.background_image && (
+        <div className="bg-image" aria-hidden="true">
+          <img
+            src={convertFileSrc(config.ui.background_image)}
+            alt=""
+            draggable={false}
+          />
+        </div>
+      )}
       <div className="crt" aria-hidden="true" />
 
       {mode === "loading" && <div className="boot">SCANNING LIBRARIES…</div>}

@@ -50,6 +50,8 @@ export interface SystemConfig {
 
 export interface UiConfig {
   tile_scale: number;
+  background: "grid" | "image" | "none" | string;
+  background_image: string | null;
 }
 
 export interface SoundsConfig {

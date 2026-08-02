@@ -62,14 +62,26 @@ pub struct UiConfig {
     /// Multiplier on wheel tile size (0.7 – 1.4).
     #[serde(default = "default_tile_scale")]
     pub tile_scale: f32,
+    /// "grid" (Tron floor), "image" (custom wallpaper), or "none".
+    #[serde(default = "default_background")]
+    pub background: String,
+    /// Wallpaper path when background = "image".
+    #[serde(default)]
+    pub background_image: Option<String>,
 }
 
 impl Default for UiConfig {
     fn default() -> Self {
         Self {
             tile_scale: default_tile_scale(),
+            background: default_background(),
+            background_image: None,
         }
     }
+}
+
+fn default_background() -> String {
+    "grid".into()
 }
 
 fn default_tile_scale() -> f32 {
