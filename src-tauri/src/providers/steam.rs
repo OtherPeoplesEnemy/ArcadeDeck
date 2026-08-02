@@ -113,7 +113,7 @@ fn find_libraries(root: &Path) -> Vec<PathBuf> {
     let mut libs: Vec<PathBuf> = Vec::new();
     let mut seen: Vec<PathBuf> = Vec::new();
 
-    let mut push_unique = |p: PathBuf, libs: &mut Vec<PathBuf>, seen: &mut Vec<PathBuf>| {
+    let push_unique = |p: PathBuf, libs: &mut Vec<PathBuf>, seen: &mut Vec<PathBuf>| {
         let canon = fs::canonicalize(&p).unwrap_or_else(|_| p.clone());
         if !seen.contains(&canon) {
             seen.push(canon);
