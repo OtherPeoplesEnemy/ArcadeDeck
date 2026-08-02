@@ -72,6 +72,7 @@ export interface AttractConfig {
 export interface AppConfig {
   steam: SteamConfig;
   mame: MameConfig | null;
+  fbneo: MameConfig | null;
   systems: SystemConfig[];
   attract_after_secs: number;
   ui: UiConfig;

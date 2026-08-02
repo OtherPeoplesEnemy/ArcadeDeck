@@ -38,6 +38,7 @@ interface Props {
 type View =
   | { kind: "menu" }
   | { kind: "mame" }
+  | { kind: "fbneo" }
   | { kind: "system"; editIndex: number | null }
   | { kind: "games" }
   | { kind: "sgdb" };
@@ -241,6 +242,11 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       label: "MAME",
       value: draft.mame ? "configured" : "not set up",
     },
+    {
+      id: "fbneo",
+      label: "FinalBurn Neo",
+      value: draft.fbneo ? "configured" : "not set up",
+    },
     ...draft.systems.map((s, i) => ({
       id: `sys-${i}`,
       label: `System: ${s.name}`,
@@ -261,10 +267,18 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
   /* ----- form rows ----- */
 
   const formFields: { key: keyof FormState; label: string; ph?: string }[] =
-    view.kind === "mame"
+    view.kind === "mame" || view.kind === "fbneo"
       ? [
-          { key: "execWin", label: "MAME exe (Windows)", ph: "C:\\mame\\mame.exe" },
-          { key: "execLinux", label: "MAME binary (Linux)", ph: "/usr/bin/mame" },
+          {
+            key: "execWin",
+            label: view.kind === "mame" ? "MAME exe (Windows)" : "FBNeo exe (Windows)",
+            ph: view.kind === "mame" ? "C:\\mame\\mame.exe" : "C:\\fbneo\\fbneo64.exe",
+          },
+          {
+            key: "execLinux",
+            label: view.kind === "mame" ? "MAME binary (Linux)" : "FBNeo binary (Linux)",
+            ph: view.kind === "mame" ? "/usr/bin/mame" : "/usr/bin/fbneo",
+          },
           { key: "romWin", label: "ROM folder (Windows)", ph: "D:\\roms\\arcade" },
           { key: "romLinux", label: "ROM folder (Linux)" },
           { key: "artWin", label: "Art folder (Windows)" },
@@ -297,14 +311,17 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
   };
 
   const commitForm = () => {
-    if (view.kind === "mame") {
-      const mame: MameConfig = {
+    if (view.kind === "mame" || view.kind === "fbneo") {
+      const which = view.kind;
+      const entry: MameConfig = {
         executable: { windows: orNull(form.execWin), linux: orNull(form.execLinux) },
         rom_path: { windows: orNull(form.romWin), linux: orNull(form.romLinux) },
         art_path: { windows: orNull(form.artWin), linux: orNull(form.artLinux) },
-        extra_args: draft.mame?.extra_args ?? [],
+        extra_args: (which === "mame" ? draft.mame : draft.fbneo)?.extra_args ?? [],
       };
-      setDraft((d) => ({ ...d, mame }));
+      setDraft((d) =>
+        which === "mame" ? { ...d, mame: entry } : { ...d, fbneo: entry }
+      );
     } else if (view.kind === "system") {
       const editIndex = view.editIndex;
       const sys: SystemConfig = {
@@ -430,6 +447,10 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
     } else if (row.id === "mame") {
       setForm(formFromMame(draft.mame));
       setView({ kind: "mame" });
+      setCursor(0);
+    } else if (row.id === "fbneo") {
+      setForm(formFromMame(draft.fbneo));
+      setView({ kind: "fbneo" });
       setCursor(0);
     } else if (row.id === "add") {
       setForm(blankForm());
@@ -588,7 +609,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
   /* ----- focus / scroll management ----- */
 
   useEffect(() => {
-    if (view.kind === "mame" || view.kind === "system") {
+    if (view.kind === "mame" || view.kind === "fbneo" || view.kind === "system") {
       if (cursor < formFields.length) fieldRefs.current[cursor]?.focus();
       else (document.activeElement as HTMLElement | null)?.blur();
     } else if (view.kind === "sgdb") {
@@ -784,12 +805,16 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
         {header(
           view.kind === "mame"
             ? "MAME SETUP"
-            : view.editIndex === null
+            : view.kind === "fbneo"
+              ? "FINALBURN NEO SETUP"
+              : view.editIndex === null
               ? "ADD SYSTEM"
               : "EDIT SYSTEM"
         )}
         <div className="settings__note">
-          Type or paste paths. Leave a platform's paths blank if unused.
+          {view.kind === "fbneo"
+            ? "Also set the same ROM folder inside FBNeo itself (it loads ROMs via its own paths). Use FBNeo-compatible romsets."
+            : "Type or paste paths. Leave a platform's paths blank if unused."}
         </div>
         <ul className="settings__list">
           {formFields.map((f, i) => (
@@ -821,7 +846,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
             onMouseEnter={() => setCursor(formFields.length)}
             onClick={commitForm}
           >
-            <span>Save {view.kind === "mame" ? "MAME setup" : "system"}</span>
+            <span>Save {view.kind === "mame" ? "MAME setup" : view.kind === "fbneo" ? "FBNeo setup" : "system"}</span>
           </li>
           <li
             className={`settings__row ${

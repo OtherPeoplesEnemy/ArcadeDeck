@@ -45,6 +45,9 @@ pub struct MameConfig {
     pub extra_args: Vec<String>,
 }
 
+/// FBNeo uses the same fields as MAME (executable, ROM folder, art folder).
+pub type FbneoConfig = MameConfig;
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SystemConfig {
     pub name: String,
@@ -95,6 +98,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub mame: Option<MameConfig>,
     #[serde(default)]
+    pub fbneo: Option<FbneoConfig>,
+    #[serde(default)]
     pub systems: Vec<SystemConfig>,
     /// Seconds of inactivity before attract mode starts.
     #[serde(default = "default_attract_secs")]
@@ -118,6 +123,7 @@ impl Default for AppConfig {
         Self {
             steam: SteamConfig::default(),
             mame: None,
+            fbneo: None,
             systems: Vec::new(),
             // The derived Default gave 0 here, which made attract mode
             // trigger instantly. Never again.

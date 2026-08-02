@@ -13,6 +13,7 @@ import type { Action, AppConfig, Game, Mode } from "./types";
 const FALLBACK_CONFIG: AppConfig = {
   steam: { enabled: true },
   mame: null,
+  fbneo: null,
   systems: [],
   attract_after_secs: 45,
   ui: { tile_scale: 1.0, background: "grid", background_image: null },
