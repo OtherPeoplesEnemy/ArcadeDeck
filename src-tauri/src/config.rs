@@ -1,0 +1,107 @@
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
+
+/// A path that can differ between Windows and Linux.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct PlatformPath {
+    pub windows: Option<String>,
+    pub linux: Option<String>,
+}
+
+impl PlatformPath {
+    pub fn resolve(&self) -> Option<String> {
+        #[cfg(target_os = "windows")]
+        {
+            self.windows.clone()
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            self.linux.clone()
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SteamConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+impl Default for SteamConfig {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct MameConfig {
+    pub executable: PlatformPath,
+    pub rom_path: PlatformPath,
+    #[serde(default)]
+    pub art_path: PlatformPath,
+    /// Extra args appended after the ROM shortname.
+    #[serde(default)]
+    pub extra_args: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SystemConfig {
+    pub name: String,
+    pub emulator: PlatformPath,
+    /// Args as an array; "{rom}" is replaced with the full ROM path.
+    pub args: Vec<String>,
+    pub rom_path: PlatformPath,
+    pub extensions: Vec<String>,
+    #[serde(default)]
+    pub art_path: PlatformPath,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct AppConfig {
+    #[serde(default)]
+    pub steam: SteamConfig,
+    #[serde(default)]
+    pub mame: Option<MameConfig>,
+    #[serde(default)]
+    pub systems: Vec<SystemConfig>,
+    /// Seconds of inactivity before attract mode starts.
+    #[serde(default = "default_attract_secs")]
+    pub attract_after_secs: u64,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_attract_secs() -> u64 {
+    45
+}
+
+pub fn config_dir() -> PathBuf {
+    dirs::config_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("arcadedeck")
+}
+
+pub fn config_file() -> PathBuf {
+    config_dir().join("config.json")
+}
+
+/// Load config, writing a commented starter file on first run.
+pub fn load() -> AppConfig {
+    let path = config_file();
+    if let Ok(raw) = fs::read_to_string(&path) {
+        match serde_json::from_str::<AppConfig>(&raw) {
+            Ok(cfg) => return cfg,
+            Err(e) => eprintln!("[config] parse error in {:?}: {e}", path),
+        }
+    } else {
+        let _ = fs::create_dir_all(config_dir());
+        let default = AppConfig::default();
+        if let Ok(json) = serde_json::to_string_pretty(&default) {
+            let _ = fs::write(&path, json);
+        }
+    }
+    AppConfig::default()
+}

@@ -1,0 +1,40 @@
+{
+  "steam": {
+    "enabled": true
+  },
+  "mame": {
+    "executable": {
+      "windows": "C:\\mame\\mame.exe",
+      "linux": "/usr/bin/mame"
+    },
+    "rom_path": {
+      "windows": "D:\\roms\\arcade",
+      "linux": "/home/payman/roms/arcade"
+    },
+    "art_path": {
+      "windows": "D:\\art\\arcade",
+      "linux": "/home/payman/art/arcade"
+    },
+    "extra_args": []
+  },
+  "systems": [
+    {
+      "name": "SNES",
+      "emulator": {
+        "windows": "C:\\RetroArch\\retroarch.exe",
+        "linux": "/usr/bin/retroarch"
+      },
+      "args": ["-L", "snes9x_libretro", "{rom}", "-f"],
+      "rom_path": {
+        "windows": "D:\\roms\\snes",
+        "linux": "/home/payman/roms/snes"
+      },
+      "extensions": [".sfc", ".smc"],
+      "art_path": {
+        "windows": "D:\\art\\snes",
+        "linux": "/home/payman/art/snes"
+      }
+    }
+  ],
+  "attract_after_secs": 45
+}
