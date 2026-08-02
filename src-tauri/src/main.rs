@@ -77,6 +77,14 @@ fn remove_custom_art(game_id: String) -> Result<(), String> {
 }
 
 fn main() {
+    // Music/SFX are triggered by Tauri events, which don't count as user
+    // gestures for the webview's autoplay policy — relax it on Windows.
+    #[cfg(target_os = "windows")]
+    std::env::set_var(
+        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+        "--autoplay-policy=no-user-gesture-required",
+    );
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())

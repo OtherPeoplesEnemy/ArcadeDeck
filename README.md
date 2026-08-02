@@ -28,13 +28,17 @@ To force a MAME title-cache refresh, delete `mame_titles.json` next to the confi
 | Gamepad / arcade stick | Keyboard | Action |
 |---|---|---|
 | Stick or D-pad ◀ ▶ | Arrow keys | Browse the wheel |
-| Stick or D-pad ▲ ▼ | Arrow keys | Skip ×10 |
+| Stick or D-pad ▲ ▼ | Arrow keys | Switch system category |
 | South button (A / ✕) | Enter, Z, Space | Launch |
 | East button (B / ○), tap | Esc or X, tap | Back |
 | East button, **hold 3s** | Esc or X, **hold 3s** | Exit ArcadeDeck |
 | Start, Select, or Guide | 1, 2, or F1 | Open settings |
 
 "Start" means whatever your encoder reports as the gamepad Start button (☰ on Xbox pads, Options on PlayStation). Because cheap encoders disagree about this, the Select and Guide buttons open settings too, and keyboard `1`, `2`, and `F1` all work. Exiting shows a hold-to-confirm bar so it can't happen by accident; there's also an Exit entry at the bottom of the settings menu.
+
+## System categories
+
+When more than one system is present, a tab strip appears along the top: **All**, plus every system the scan found (Steam, Arcade, and each configured emulator system by name). Up/down on the stick cycles categories; clicking a tab jumps straight to it. Each category remembers its wheel position, and the categories rebuild automatically on every rescan.
 
 ## Mouse support
 
@@ -47,6 +51,17 @@ The cursor appears when the mouse moves and hides after 3 seconds idle. Everythi
 - **Hide game** — removes it from the wheel immediately
 
 Hidden games can be brought back in **Settings → Manage game list**, which shows everything (including hidden entries, dimmed) and toggles by click or Ⓐ. Hiding never touches files — it only filters the wheel.
+
+## Sound & attract media
+
+All in settings:
+
+- **Sound** master toggle, plus separate music / SFX / attract-video volumes
+- **Add music tracks** — pick audio files (mp3/ogg/wav/flac/m4a); they shuffle and loop as background music on the wheel and in settings, pausing automatically while a game runs
+- **Move / Launch / Back sounds** — built-in synth blips by default (no files needed); press Ⓐ or click to pick a custom file, ◀ to reset to built-in
+- **Add attract videos** — pick video files; attract mode plays them in sequence and loops. With videos configured the art slideshow is replaced and background music pauses during attract (videos bring their own audio). Clear the list to go back to the slideshow.
+
+Media paths are absolute and per-machine — set them up on the cabinet itself. On Linux, video playback depends on WebKitGTK's GStreamer codecs: `.webm` (VP9) plays everywhere, while `.mp4`/H.264 needs `gstreamer1.0-libav` installed.
 
 ## Settings menu
 

@@ -52,6 +52,21 @@ export interface UiConfig {
   tile_scale: number;
 }
 
+export interface SoundsConfig {
+  enabled: boolean;
+  music: string[];
+  music_volume: number;
+  sfx_volume: number;
+  sfx_move: string | null;
+  sfx_launch: string | null;
+  sfx_back: string | null;
+}
+
+export interface AttractConfig {
+  videos: string[];
+  video_volume: number;
+}
+
 export interface AppConfig {
   steam: SteamConfig;
   mame: MameConfig | null;
@@ -59,6 +74,8 @@ export interface AppConfig {
   attract_after_secs: number;
   ui: UiConfig;
   hidden_games: string[];
+  sounds: SoundsConfig;
+  attract: AttractConfig;
 }
 
 export const emptyPlatformPath = (): PlatformPath => ({

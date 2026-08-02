@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import type {
   Action,
   AppConfig,
@@ -12,6 +13,13 @@ import type {
   MameConfig,
   SystemConfig,
 } from "../types";
+
+const basename = (p: string) => p.split(/[\\/]/).pop() ?? p;
+
+const pct = (v: number) => `${Math.round(v * 100)}%`;
+
+const stepVol = (v: number, dir: -1 | 1) =>
+  Math.min(1, Math.max(0, +(v + dir * 0.1).toFixed(1)));
 
 export interface SettingsHandle {
   handleAction: (action: Action) => void;
@@ -130,6 +138,66 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       adjustable: true,
     },
     {
+      id: "sounds",
+      label: "Sound",
+      value: draft.sounds.enabled ? "ON" : "OFF",
+      adjustable: true,
+    },
+    {
+      id: "mvol",
+      label: "Music volume",
+      value: pct(draft.sounds.music_volume),
+      adjustable: true,
+    },
+    {
+      id: "svol",
+      label: "SFX volume",
+      value: pct(draft.sounds.sfx_volume),
+      adjustable: true,
+    },
+    {
+      id: "music-add",
+      label: "+ Add music tracks",
+      value: `${draft.sounds.music.length} loaded`,
+    },
+    ...(draft.sounds.music.length > 0
+      ? [{ id: "music-clear", label: "Clear music tracks", danger: false }]
+      : []),
+    {
+      id: "sfx-move",
+      label: "Move sound",
+      value: draft.sounds.sfx_move ? basename(draft.sounds.sfx_move) : "built-in",
+      adjustable: true,
+    },
+    {
+      id: "sfx-launch",
+      label: "Launch sound",
+      value: draft.sounds.sfx_launch ? basename(draft.sounds.sfx_launch) : "built-in",
+      adjustable: true,
+    },
+    {
+      id: "sfx-back",
+      label: "Back sound",
+      value: draft.sounds.sfx_back ? basename(draft.sounds.sfx_back) : "built-in",
+      adjustable: true,
+    },
+    {
+      id: "videos-add",
+      label: "+ Add attract videos",
+      value: `${draft.attract.videos.length} loaded`,
+    },
+    ...(draft.attract.videos.length > 0
+      ? [
+          { id: "videos-clear", label: "Clear attract videos", danger: false },
+          {
+            id: "vvol",
+            label: "Attract video volume",
+            value: pct(draft.attract.video_volume),
+            adjustable: true,
+          },
+        ]
+      : []),
+    {
       id: "mame",
       label: "MAME",
       value: draft.mame ? "configured" : "not set up",
@@ -222,9 +290,74 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
     setCursor(0);
   };
 
+  const pickMusic = async () => {
+    const files = await openFileDialog({
+      multiple: true,
+      filters: [
+        { name: "Audio", extensions: ["mp3", "ogg", "wav", "flac", "m4a"] },
+      ],
+    }).catch(() => null);
+    const list = Array.isArray(files) ? files : typeof files === "string" ? [files] : [];
+    if (list.length === 0) return;
+    setDraft((d) => ({
+      ...d,
+      sounds: {
+        ...d.sounds,
+        music: Array.from(new Set([...d.sounds.music, ...list])),
+      },
+    }));
+  };
+
+  const pickVideos = async () => {
+    const files = await openFileDialog({
+      multiple: true,
+      filters: [{ name: "Video", extensions: ["mp4", "webm", "mov", "mkv"] }],
+    }).catch(() => null);
+    const list = Array.isArray(files) ? files : typeof files === "string" ? [files] : [];
+    if (list.length === 0) return;
+    setDraft((d) => ({
+      ...d,
+      attract: {
+        ...d.attract,
+        videos: Array.from(new Set([...d.attract.videos, ...list])),
+      },
+    }));
+  };
+
+  const pickSfx = async (key: "sfx_move" | "sfx_launch" | "sfx_back") => {
+    const file = await openFileDialog({
+      multiple: false,
+      filters: [{ name: "Audio", extensions: ["mp3", "ogg", "wav"] }],
+    }).catch(() => null);
+    if (typeof file !== "string") return;
+    setDraft((d) => ({ ...d, sounds: { ...d.sounds, [key]: file } }));
+  };
+
   const activateMenuRow = (row: Row) => {
-    if (row.id === "steam" || row.id === "attract" || row.id === "tiles") {
+    if (
+      row.id === "steam" ||
+      row.id === "attract" ||
+      row.id === "tiles" ||
+      row.id === "sounds" ||
+      row.id === "mvol" ||
+      row.id === "svol" ||
+      row.id === "vvol"
+    ) {
       adjustMenuRow(row, 1); // mouse click cycles adjustable rows
+    } else if (row.id === "music-add") {
+      void pickMusic();
+    } else if (row.id === "music-clear") {
+      setDraft((d) => ({ ...d, sounds: { ...d.sounds, music: [] } }));
+    } else if (row.id === "videos-add") {
+      void pickVideos();
+    } else if (row.id === "videos-clear") {
+      setDraft((d) => ({ ...d, attract: { ...d.attract, videos: [] } }));
+    } else if (row.id === "sfx-move") {
+      void pickSfx("sfx_move");
+    } else if (row.id === "sfx-launch") {
+      void pickSfx("sfx_launch");
+    } else if (row.id === "sfx-back") {
+      void pickSfx("sfx_back");
     } else if (row.id === "mame") {
       setForm(formFromMame(draft.mame));
       setView({ kind: "mame" });
@@ -257,6 +390,36 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
   };
 
   const adjustMenuRow = (row: Row, dir: -1 | 1) => {
+    if (row.id === "sounds") {
+      setDraft((d) => ({ ...d, sounds: { ...d.sounds, enabled: !d.sounds.enabled } }));
+      return;
+    }
+    if (row.id === "mvol") {
+      setDraft((d) => ({
+        ...d,
+        sounds: { ...d.sounds, music_volume: stepVol(d.sounds.music_volume, dir) },
+      }));
+      return;
+    }
+    if (row.id === "svol") {
+      setDraft((d) => ({
+        ...d,
+        sounds: { ...d.sounds, sfx_volume: stepVol(d.sounds.sfx_volume, dir) },
+      }));
+      return;
+    }
+    if (row.id === "vvol") {
+      setDraft((d) => ({
+        ...d,
+        attract: { ...d.attract, video_volume: stepVol(d.attract.video_volume, dir) },
+      }));
+      return;
+    }
+    if (row.id.startsWith("sfx-") && dir === -1) {
+      const key = ("sfx_" + row.id.slice(4)) as "sfx_move" | "sfx_launch" | "sfx_back";
+      setDraft((d) => ({ ...d, sounds: { ...d.sounds, [key]: null } }));
+      return;
+    }
     if (row.id === "steam") {
       setDraft((d) => ({ ...d, steam: { enabled: !d.steam.enabled } }));
     } else if (row.id === "attract") {
@@ -327,7 +490,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
     if (view.kind === "mame" || view.kind === "system") {
       if (cursor < formFields.length) fieldRefs.current[cursor]?.focus();
       else (document.activeElement as HTMLElement | null)?.blur();
-    } else if (view.kind === "games") {
+    } else if (view.kind === "games" || view.kind === "menu") {
       rowRefs.current[cursor]?.scrollIntoView({ block: "nearest" });
     }
   }, [view.kind, cursor, formFields.length]);
@@ -355,10 +518,13 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       <div className="settings">
         <div className="settings__panel">
           {header("SETTINGS")}
-          <ul className="settings__list">
+          <ul className="settings__list settings__list--scroll">
             {menuRows.map((row, i) => (
               <li
                 key={row.id}
+                ref={(el) => {
+                  rowRefs.current[i] = el;
+                }}
                 className={`settings__row ${i === cursor ? "settings__row--active" : ""} ${
                   row.danger ? "settings__row--danger" : ""
                 }`}

@@ -7,6 +7,7 @@ import Wheel from "./components/Wheel";
 import AttractMode from "./components/AttractMode";
 import SettingsMenu, { SettingsHandle } from "./components/SettingsMenu";
 import { useInput, BackHoldPhase } from "./hooks/useInput";
+import { sounds } from "./sounds";
 import type { Action, AppConfig, Game, Mode } from "./types";
 
 const FALLBACK_CONFIG: AppConfig = {
@@ -16,6 +17,16 @@ const FALLBACK_CONFIG: AppConfig = {
   attract_after_secs: 45,
   ui: { tile_scale: 1.0 },
   hidden_games: [],
+  sounds: {
+    enabled: true,
+    music: [],
+    music_volume: 0.5,
+    sfx_volume: 0.7,
+    sfx_move: null,
+    sfx_launch: null,
+    sfx_back: null,
+  },
+  attract: { videos: [], video_volume: 0.5 },
 };
 
 interface CtxMenu {
@@ -36,11 +47,69 @@ export default function App() {
 
   const modeRef = useRef(mode);
   modeRef.current = mode;
+  const visibleRef = useRef<Game[]>([]);
   const lastInputRef = useRef(Date.now());
   const settingsRef = useRef<SettingsHandle>(null);
   const exitArmTimer = useRef<number | null>(null);
 
-  const visible = useMemo(() => games.filter((g) => !g.hidden), [games]);
+  const [systemIdx, setSystemIdx] = useState(0);
+  const selMemRef = useRef<Record<string, number>>({});
+
+  const shown = useMemo(() => games.filter((g) => !g.hidden), [games]);
+
+  // Category tabs, derived from whatever the scan found. "All" only exists
+  // when there's more than one system.
+  const categories = useMemo(() => {
+    const sys = Array.from(new Set(shown.map((g) => g.system))).sort();
+    return sys.length > 1 ? ["All", ...sys] : sys;
+  }, [shown]);
+
+  const category = categories[Math.min(systemIdx, Math.max(0, categories.length - 1))] ?? "All";
+
+  const visible = useMemo(
+    () =>
+      category === "All" ? shown : shown.filter((g) => g.system === category),
+    [shown, category]
+  );
+
+  visibleRef.current = visible;
+
+  // Remember the wheel position per system.
+  useEffect(() => {
+    selMemRef.current[category] = selected;
+  }, [selected, category]);
+
+  const switchSystem = useCallback(
+    (dir: number) => {
+      if (categories.length < 2) return;
+      sounds.playMove();
+      setSystemIdx((i) => {
+        const next = (i + dir + categories.length) % categories.length;
+        const cat = categories[next];
+        const list =
+          cat === "All" ? shown : shown.filter((g) => g.system === cat);
+        setSelected(
+          Math.min(selMemRef.current[cat] ?? 0, Math.max(0, list.length - 1))
+        );
+        return next;
+      });
+    },
+    [categories, shown]
+  );
+
+  const jumpToSystem = useCallback(
+    (idx: number) => {
+      if (idx === systemIdx) return;
+      sounds.playMove();
+      const cat = categories[idx];
+      const list = cat === "All" ? shown : shown.filter((g) => g.system === cat);
+      setSelected(
+        Math.min(selMemRef.current[cat] ?? 0, Math.max(0, list.length - 1))
+      );
+      setSystemIdx(idx);
+    },
+    [categories, shown, systemIdx]
+  );
 
   const rescan = useCallback(() => {
     return invoke<Game[]>("scan_games")
@@ -48,6 +117,7 @@ export default function App() {
         setGames(g);
         const vis = g.filter((x) => !x.hidden).length;
         setSelected((s) => Math.min(s, Math.max(0, vis - 1)));
+        setSystemIdx(0);
       })
       .catch((e) => console.error("scan failed", e));
   }, []);
@@ -97,6 +167,32 @@ export default function App() {
     return () => window.clearInterval(t);
   }, [config.attract_after_secs]);
 
+  // Audio engine follows config…
+  useEffect(() => {
+    sounds.configure(config.sounds);
+  }, [config.sounds]);
+
+  // …and music follows mode: on for wheel/settings, on in attract only if
+  // it's the art slideshow (videos bring their own audio), off in-game.
+  useEffect(() => {
+    sounds.setMusicActive(
+      mode === "wheel" ||
+        mode === "settings" ||
+        (mode === "attract" && config.attract.videos.length === 0)
+    );
+  }, [mode, config.attract.videos.length]);
+
+  // Real DOM gestures unlock audio if the autoplay policy blocked it.
+  useEffect(() => {
+    const unlock = () => sounds.unlock();
+    window.addEventListener("keydown", unlock);
+    window.addEventListener("mousedown", unlock);
+    return () => {
+      window.removeEventListener("keydown", unlock);
+      window.removeEventListener("mousedown", unlock);
+    };
+  }, []);
+
   // Mouse: cursor auto-hide, activity counts as input, click wakes attract.
   useEffect(() => {
     let hideTimer: number;
@@ -125,6 +221,7 @@ export default function App() {
 
   const launch = useCallback((game: Game) => {
     setCtxMenu(null);
+    sounds.playLaunch();
     setMode("playing");
     invoke("launch_game", { game }).catch((e) => {
       console.error("launch failed", e);
@@ -208,6 +305,8 @@ export default function App() {
       }
 
       if (m === "settings") {
+        if (action === "up" || action === "down") sounds.playMove();
+        else if (action === "back") sounds.playBack();
         settingsRef.current?.handleAction(action);
         return;
       }
@@ -219,35 +318,39 @@ export default function App() {
         return;
       }
 
-      setGames((all) => {
-        const g = all.filter((x) => !x.hidden);
-        if (g.length === 0) return all;
-        switch (action) {
-          case "left":
+      const g = visibleRef.current;
+      switch (action) {
+        case "left":
+          if (g.length > 0) {
+            sounds.playMove();
             setSelected((s) => (s - 1 + g.length) % g.length);
-            break;
-          case "right":
+          }
+          break;
+        case "right":
+          if (g.length > 0) {
+            sounds.playMove();
             setSelected((s) => (s + 1) % g.length);
-            break;
-          case "up":
-            setSelected((s) => (s - 10 + g.length * 10) % g.length);
-            break;
-          case "down":
-            setSelected((s) => (s + 10) % g.length);
-            break;
-          case "select":
+          }
+          break;
+        case "up":
+          switchSystem(-1);
+          break;
+        case "down":
+          switchSystem(1);
+          break;
+        case "select":
+          if (g.length > 0) {
             setSelected((s) => {
-              launch(g[s]);
+              launch(g[Math.min(s, g.length - 1)]);
               return s;
             });
-            break;
-          default:
-            break;
-        }
-        return all;
-      });
+          }
+          break;
+        default:
+          break;
+      }
     },
-    [launch]
+    [launch, switchSystem]
   );
 
   const onBackHold = useCallback((phase: BackHoldPhase) => {
@@ -279,6 +382,7 @@ export default function App() {
       if (offset === 0) {
         if (visible[selected]) launch(visible[selected]);
       } else {
+        sounds.playMove();
         setSelected((s) => (s + offset + visible.length * 10) % visible.length);
       }
     },
@@ -306,6 +410,20 @@ export default function App() {
 
       {mode === "loading" && <div className="boot">SCANNING LIBRARIES…</div>}
 
+      {mode === "wheel" && categories.length > 1 && (
+        <nav className="systems">
+          {categories.map((c, i) => (
+            <button
+              key={c}
+              className={`systems__tab ${i === systemIdx ? "systems__tab--active" : ""}`}
+              onClick={() => jumpToSystem(i)}
+            >
+              {c}
+            </button>
+          ))}
+        </nav>
+      )}
+
       {mode === "wheel" && visible.length > 0 && (
         <Wheel
           games={visible}
@@ -318,9 +436,11 @@ export default function App() {
 
       {mode === "wheel" && visible.length === 0 && (
         <div className="boot">
-          <p>NO GAMES FOUND</p>
+          <p>{shown.length === 0 ? "NO GAMES FOUND" : "NOTHING IN THIS CATEGORY"}</p>
           <p className="boot__hint">
-            Press START (or click SETTINGS below) to add your systems.
+            {shown.length === 0
+              ? "Press START (or click SETTINGS below) to add your systems."
+              : "▲ ▼ to switch systems."}
           </p>
         </div>
       )}
@@ -344,7 +464,7 @@ export default function App() {
         </div>
       )}
 
-      {mode === "attract" && <AttractMode games={visible} />}
+      {mode === "attract" && <AttractMode games={visible} attract={config.attract} />}
 
       {ctxMenu && mode === "wheel" && (
         <>
@@ -404,7 +524,7 @@ export default function App() {
       {mode === "wheel" && (
         <footer className="controls">
           <span>◀ ▶ BROWSE</span>
-          <span>▲ ▼ SKIP ×10</span>
+          <span>▲ ▼ SYSTEM</span>
           <span>Ⓐ LAUNCH</span>
           <button className="controls__btn" onClick={() => setMode("settings")}>
             START · 1 SETTINGS

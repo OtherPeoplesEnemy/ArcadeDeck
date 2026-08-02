@@ -103,15 +103,33 @@ fn find_steam_root() -> Option<PathBuf> {
 }
 
 /// The root library plus everything listed in libraryfolders.vdf.
+///
+/// The root is almost always ALSO listed in the VDF, and the two sources
+/// format the path differently (registry: `c:/program files (x86)/steam`,
+/// VDF: `C:\Program Files (x86)\Steam`), so dedupe by canonical path —
+/// naive string comparison scans the main library twice and duplicates
+/// every game.
 fn find_libraries(root: &Path) -> Vec<PathBuf> {
-    let mut libs = vec![root.to_path_buf()];
+    let mut libs: Vec<PathBuf> = Vec::new();
+    let mut seen: Vec<PathBuf> = Vec::new();
+
+    let mut push_unique = |p: PathBuf, libs: &mut Vec<PathBuf>, seen: &mut Vec<PathBuf>| {
+        let canon = fs::canonicalize(&p).unwrap_or_else(|_| p.clone());
+        if !seen.contains(&canon) {
+            seen.push(canon);
+            libs.push(p);
+        }
+    };
+
+    push_unique(root.to_path_buf(), &mut libs, &mut seen);
+
     let vdf = root.join("steamapps").join("libraryfolders.vdf");
     if let Ok(raw) = fs::read_to_string(vdf) {
         let path_re = Regex::new(r#""path"\s+"([^"]+)""#).unwrap();
         for cap in path_re.captures_iter(&raw) {
             let p = PathBuf::from(cap[1].replace("\\\\", "\\"));
-            if p.exists() && !libs.contains(&p) {
-                libs.push(p);
+            if p.exists() {
+                push_unique(p, &mut libs, &mut seen);
             }
         }
     }

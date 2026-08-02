@@ -92,6 +92,10 @@ pub struct AppConfig {
     /// Game ids the user has hidden from the wheel.
     #[serde(default)]
     pub hidden_games: Vec<String>,
+    #[serde(default)]
+    pub sounds: SoundsConfig,
+    #[serde(default)]
+    pub attract: AttractConfig,
 }
 
 impl Default for AppConfig {
@@ -105,8 +109,71 @@ impl Default for AppConfig {
             attract_after_secs: default_attract_secs(),
             ui: UiConfig::default(),
             hidden_games: Vec::new(),
+            sounds: SoundsConfig::default(),
+            attract: AttractConfig::default(),
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SoundsConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Background music tracks (absolute paths, per-machine).
+    #[serde(default)]
+    pub music: Vec<String>,
+    #[serde(default = "default_half")]
+    pub music_volume: f32,
+    #[serde(default = "default_sfx_vol")]
+    pub sfx_volume: f32,
+    /// Custom SFX files; None = built-in synth sounds.
+    #[serde(default)]
+    pub sfx_move: Option<String>,
+    #[serde(default)]
+    pub sfx_launch: Option<String>,
+    #[serde(default)]
+    pub sfx_back: Option<String>,
+}
+
+impl Default for SoundsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            music: Vec::new(),
+            music_volume: default_half(),
+            sfx_volume: default_sfx_vol(),
+            sfx_move: None,
+            sfx_launch: None,
+            sfx_back: None,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AttractConfig {
+    /// Video files to loop in attract mode (absolute paths, per-machine).
+    /// Empty = art slideshow.
+    #[serde(default)]
+    pub videos: Vec<String>,
+    #[serde(default = "default_half")]
+    pub video_volume: f32,
+}
+
+impl Default for AttractConfig {
+    fn default() -> Self {
+        Self {
+            videos: Vec::new(),
+            video_volume: default_half(),
+        }
+    }
+}
+
+fn default_half() -> f32 {
+    0.5
+}
+
+fn default_sfx_vol() -> f32 {
+    0.7
 }
 
 fn default_true() -> bool {

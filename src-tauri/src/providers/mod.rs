@@ -79,5 +79,12 @@ pub fn scan_all(cfg: &crate::config::AppConfig) -> Vec<Game> {
     }
 
     games.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+
+    // Safety net: ids must be unique — duplicates break the frontend's
+    // keyed rendering (frozen/mismatched tiles). Whatever the cause,
+    // never let two entries with the same id through.
+    let mut seen = std::collections::HashSet::new();
+    games.retain(|g| seen.insert(g.id.clone()));
+
     games
 }
