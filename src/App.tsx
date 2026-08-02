@@ -417,8 +417,21 @@ export default function App() {
     exitArmTimer.current = window.setTimeout(() => setExitArmed(false), 3000);
   }, [exitArmed]);
 
+  const gridPaused =
+    mode === "playing" ||
+    (mode === "attract" && config.attract.videos.length > 0);
+
   return (
     <div className="app">
+      <div
+        className={`grid-bg ${gridPaused ? "grid-bg--paused" : ""}`}
+        aria-hidden="true"
+      >
+        <div className="grid-bg__sun" />
+        <div className="grid-bg__ceiling" />
+        <div className="grid-bg__floor" />
+        <div className="grid-bg__horizon" />
+      </div>
       <div className="crt" aria-hidden="true" />
 
       {mode === "loading" && <div className="boot">SCANNING LIBRARIES…</div>}
