@@ -1,6 +1,7 @@
 // Prevents an extra console window on Windows in release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod artfetch;
 mod config;
 mod input;
 mod launcher;
@@ -67,6 +68,11 @@ fn set_custom_art(game_id: String, source: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn fetch_missing_art(api_key: Option<String>) -> Result<artfetch::FetchResult, String> {
+    artfetch::fetch_missing(api_key.as_deref())
+}
+
+#[tauri::command]
 fn remove_custom_art(game_id: String) -> Result<(), String> {
     let dir = config::config_dir().join("art");
     let base = providers::sanitize_id(&game_id);
@@ -101,7 +107,8 @@ fn main() {
             get_attract_delay,
             quit_app,
             set_custom_art,
-            remove_custom_art
+            remove_custom_art,
+            fetch_missing_art
         ])
         .run(tauri::generate_context!())
         .expect("error while running ArcadeDeck");

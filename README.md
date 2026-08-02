@@ -52,6 +52,15 @@ The cursor appears when the mouse moves and hides after 3 seconds idle. Everythi
 
 Hidden games can be brought back in **Settings → Manage game list**, which shows everything (including hidden entries, dimmed) and toggles by click or Ⓐ. Hiding never touches files — it only filters the wheel.
 
+## Artwork fetching
+
+**Settings → Fetch missing artwork** downloads box art for every game that has none:
+
+- **Steam games** — pulled from Steam's own CDN by app id, no signup needed. Fixes games whose art Steam hadn't cached locally.
+- **MAME and emulator games** — searched by title on [SteamGridDB](https://www.steamgriddb.com). This needs a free API key (steamgriddb.com → Profile → Preferences → API), entered once via **Settings → SteamGridDB API key**.
+
+Downloads go to `config dir/art-cache/` and survive rescans. Priority per game: your custom image (right-click → Set custom image) always wins, then art the scanners found, then downloaded art. Name search can occasionally match the wrong game for obscure ROMs — a custom image overrides any bad match.
+
 ## Sound & attract media
 
 All in settings:

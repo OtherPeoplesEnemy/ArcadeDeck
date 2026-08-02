@@ -27,6 +27,7 @@ const FALLBACK_CONFIG: AppConfig = {
     sfx_back: null,
   },
   attract: { videos: [], video_volume: 0.5 },
+  sgdb_api_key: null,
 };
 
 interface CtxMenu {
@@ -228,6 +229,18 @@ export default function App() {
       setMode("wheel");
     });
   }, []);
+
+  const fetchArt = useCallback(
+    async (key: string | null) => {
+      const res = await invoke<{ fetched: number; failed: number }>(
+        "fetch_missing_art",
+        { apiKey: key }
+      );
+      await rescan();
+      return res;
+    },
+    [rescan]
+  );
 
   const saveSettings = useCallback(
     (cfg: AppConfig) => {
@@ -518,6 +531,7 @@ export default function App() {
           onSave={saveSettings}
           onCancel={() => setMode("wheel")}
           onQuit={() => invoke("quit_app").catch(() => {})}
+          onFetchArt={fetchArt}
         />
       )}
 

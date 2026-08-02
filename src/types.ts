@@ -76,6 +76,7 @@ export interface AppConfig {
   hidden_games: string[];
   sounds: SoundsConfig;
   attract: AttractConfig;
+  sgdb_api_key: string | null;
 }
 
 export const emptyPlatformPath = (): PlatformPath => ({

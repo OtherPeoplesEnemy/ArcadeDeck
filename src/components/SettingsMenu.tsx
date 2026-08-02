@@ -32,13 +32,15 @@ interface Props {
   onSave: (cfg: AppConfig) => void;
   onCancel: () => void;
   onQuit: () => void;
+  onFetchArt: (key: string | null) => Promise<{ fetched: number; failed: number }>;
 }
 
 type View =
   | { kind: "menu" }
   | { kind: "mame" }
   | { kind: "system"; editIndex: number | null }
-  | { kind: "games" };
+  | { kind: "games" }
+  | { kind: "sgdb" };
 
 interface Row {
   id: string;
@@ -103,7 +105,7 @@ const orNull = (s: string) => (s.trim() ? s.trim() : null);
 /* ---------- component ---------- */
 
 const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
-  { config, configPath, games, onSave, onCancel, onQuit },
+  { config, configPath, games, onSave, onCancel, onQuit, onFetchArt },
   ref
 ) {
   const [draft, setDraft] = useState<AppConfig>(() =>
@@ -113,6 +115,9 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
   const [cursor, setCursor] = useState(0);
   const [confirmRemove, setConfirmRemove] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(blankForm);
+  const [sgdbKey, setSgdbKey] = useState("");
+  const [fetchStatus, setFetchStatus] = useState("");
+  const sgdbInputRef = useRef<HTMLInputElement | null>(null);
   const fieldRefs = useRef<(HTMLInputElement | null)[]>([]);
   const rowRefs = useRef<(HTMLLIElement | null)[]>([]);
 
@@ -197,6 +202,18 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
           },
         ]
       : []),
+    {
+      id: "fetch-art",
+      label: "Fetch missing artwork",
+      value:
+        fetchStatus ||
+        (draft.sgdb_api_key ? "Steam CDN + SteamGridDB" : "Steam CDN only"),
+    },
+    {
+      id: "sgdb-key",
+      label: "SteamGridDB API key",
+      value: draft.sgdb_api_key ? "set" : "not set",
+    },
     {
       id: "mame",
       label: "MAME",
@@ -358,6 +375,18 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       void pickSfx("sfx_launch");
     } else if (row.id === "sfx-back") {
       void pickSfx("sfx_back");
+    } else if (row.id === "fetch-art") {
+      if (fetchStatus === "fetching…") return;
+      setFetchStatus("fetching…");
+      onFetchArt(draft.sgdb_api_key)
+        .then((r) =>
+          setFetchStatus(`+${r.fetched} found · ${r.failed} missing`)
+        )
+        .catch(() => setFetchStatus("fetch failed"));
+    } else if (row.id === "sgdb-key") {
+      setSgdbKey(draft.sgdb_api_key ?? "");
+      setView({ kind: "sgdb" });
+      setCursor(0);
     } else if (row.id === "mame") {
       setForm(formFromMame(draft.mame));
       setView({ kind: "mame" });
@@ -464,6 +493,27 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
           setView({ kind: "menu" });
           setCursor(0);
         }
+      } else if (view.kind === "sgdb") {
+        const rows = 3;
+        if (action === "up") setCursor((c) => (c - 1 + rows) % rows);
+        else if (action === "down") setCursor((c) => (c + 1) % rows);
+        else if (action === "select") {
+          if (cursor === 0) setCursor(1);
+          else if (cursor === 1) {
+            setDraft((d) => ({
+              ...d,
+              sgdb_api_key: sgdbKey.trim() ? sgdbKey.trim() : null,
+            }));
+            setView({ kind: "menu" });
+            setCursor(0);
+          } else {
+            setView({ kind: "menu" });
+            setCursor(0);
+          }
+        } else if (action === "back") {
+          setView({ kind: "menu" });
+          setCursor(0);
+        }
       } else {
         // form view
         if (action === "up") setCursor((c) => (c - 1 + formRowCount) % formRowCount);
@@ -489,6 +539,9 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
   useEffect(() => {
     if (view.kind === "mame" || view.kind === "system") {
       if (cursor < formFields.length) fieldRefs.current[cursor]?.focus();
+      else (document.activeElement as HTMLElement | null)?.blur();
+    } else if (view.kind === "sgdb") {
+      if (cursor === 0) sgdbInputRef.current?.focus();
       else (document.activeElement as HTMLElement | null)?.blur();
     } else if (view.kind === "games" || view.kind === "menu") {
       rowRefs.current[cursor]?.scrollIntoView({ block: "nearest" });
@@ -606,6 +659,61 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
               }}
               className={`settings__row ${cursor === games.length ? "settings__row--active" : ""}`}
               onMouseEnter={() => setCursor(games.length)}
+              onClick={() => {
+                setView({ kind: "menu" });
+                setCursor(0);
+              }}
+            >
+              <span>Back</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    );
+  }
+
+  if (view.kind === "sgdb") {
+    return (
+      <div className="settings">
+        <div className="settings__panel">
+          {header("STEAMGRIDDB")}
+          <div className="settings__note">
+            Free API key from steamgriddb.com → Profile → Preferences → API.
+            Enables artwork search for MAME and emulator games; Steam games
+            work without it.
+          </div>
+          <ul className="settings__list">
+            <li
+              className={`settings__row settings__row--field ${
+                cursor === 0 ? "settings__row--active" : ""
+              }`}
+            >
+              <label>API key</label>
+              <input
+                ref={sgdbInputRef}
+                value={sgdbKey}
+                spellCheck={false}
+                onChange={(e) => setSgdbKey(e.target.value)}
+                onFocus={() => setCursor(0)}
+              />
+            </li>
+            <li
+              className={`settings__row ${cursor === 1 ? "settings__row--active" : ""}`}
+              onMouseEnter={() => setCursor(1)}
+              onClick={() => {
+                setDraft((d) => ({
+                  ...d,
+                  sgdb_api_key: sgdbKey.trim() ? sgdbKey.trim() : null,
+                }));
+                setView({ kind: "menu" });
+                setCursor(0);
+              }}
+            >
+              <span>Save key</span>
+            </li>
+            <li
+              className={`settings__row ${cursor === 2 ? "settings__row--active" : ""}`}
+              onMouseEnter={() => setCursor(2)}
               onClick={() => {
                 setView({ kind: "menu" });
                 setCursor(0);

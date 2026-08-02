@@ -96,6 +96,9 @@ pub struct AppConfig {
     pub sounds: SoundsConfig,
     #[serde(default)]
     pub attract: AttractConfig,
+    /// SteamGridDB API key for artwork fetching (free: steamgriddb.com).
+    #[serde(default)]
+    pub sgdb_api_key: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -111,6 +114,7 @@ impl Default for AppConfig {
             hidden_games: Vec::new(),
             sounds: SoundsConfig::default(),
             attract: AttractConfig::default(),
+            sgdb_api_key: None,
         }
     }
 }

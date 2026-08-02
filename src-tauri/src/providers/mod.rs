@@ -66,13 +66,25 @@ pub fn scan_all(cfg: &crate::config::AppConfig) -> Vec<Game> {
     // Custom art overrides win over anything the providers found, and the
     // hidden flag comes from config.
     let art_dir = crate::config::config_dir().join("art");
+    let cache_dir = crate::config::config_dir().join("art-cache");
     for g in &mut games {
         let base = sanitize_id(&g.id);
+        // Custom art always wins…
         for ext in ["png", "jpg", "jpeg"] {
             let p = art_dir.join(format!("{base}.{ext}"));
             if p.exists() {
                 g.art = Some(p.to_string_lossy().to_string());
                 break;
+            }
+        }
+        // …then whatever the provider found, then downloaded art.
+        if g.art.is_none() {
+            for ext in ["png", "jpg", "jpeg"] {
+                let p = cache_dir.join(format!("{base}.{ext}"));
+                if p.exists() {
+                    g.art = Some(p.to_string_lossy().to_string());
+                    break;
+                }
             }
         }
         g.hidden = cfg.hidden_games.contains(&g.id);
