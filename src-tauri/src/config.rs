@@ -76,7 +76,7 @@ fn default_tile_scale() -> f32 {
     1.0
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppConfig {
     #[serde(default)]
     pub steam: SteamConfig,
@@ -89,6 +89,20 @@ pub struct AppConfig {
     pub attract_after_secs: u64,
     #[serde(default)]
     pub ui: UiConfig,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            steam: SteamConfig::default(),
+            mame: None,
+            systems: Vec::new(),
+            // The derived Default gave 0 here, which made attract mode
+            // trigger instantly. Never again.
+            attract_after_secs: default_attract_secs(),
+            ui: UiConfig::default(),
+        }
+    }
 }
 
 fn default_true() -> bool {
@@ -114,7 +128,14 @@ pub fn load() -> AppConfig {
     let path = config_file();
     if let Ok(raw) = fs::read_to_string(&path) {
         match serde_json::from_str::<AppConfig>(&raw) {
-            Ok(cfg) => return cfg,
+            Ok(mut cfg) => {
+                // Migrate configs written by the buggy v0.1 default (0 = instant attract).
+                if cfg.attract_after_secs == 0 {
+                    cfg.attract_after_secs = default_attract_secs();
+                    let _ = save(&cfg);
+                }
+                return cfg;
+            }
             Err(e) => eprintln!("[config] parse error in {:?}: {e}", path),
         }
     } else {

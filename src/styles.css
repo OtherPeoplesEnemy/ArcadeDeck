@@ -445,3 +445,52 @@ body,
   cursor: text;
   user-select: text;
 }
+
+/* ---- Exit hold overlay ---- */
+.exit-warn {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 5, 10, 0.7);
+}
+
+.exit-warn__box {
+  text-align: center;
+}
+
+.exit-warn__label {
+  font-family: var(--utility);
+  font-size: 20px;
+  letter-spacing: 0.45em;
+  color: var(--magenta);
+  margin-bottom: 24px;
+}
+
+.exit-warn__bar {
+  width: 340px;
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(255, 61, 174, 0.15);
+  overflow: hidden;
+}
+
+.exit-warn__fill {
+  height: 100%;
+  width: 100%;
+  background: var(--magenta);
+  transform-origin: left center;
+  /* warn appears at 0.9s of the 3s hold; fill covers the remaining 2.1s */
+  animation: exitfill 2100ms linear both;
+}
+
+@keyframes exitfill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}

@@ -40,6 +40,11 @@ fn get_attract_delay() -> u64 {
     config::load().attract_after_secs
 }
 
+#[tauri::command]
+fn quit_app(app: AppHandle) {
+    app.exit(0);
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -53,7 +58,8 @@ fn main() {
             get_config_path,
             get_full_config,
             save_config,
-            get_attract_delay
+            get_attract_delay,
+            quit_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running ArcadeDeck");

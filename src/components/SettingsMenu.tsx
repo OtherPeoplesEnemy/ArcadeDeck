@@ -21,6 +21,7 @@ interface Props {
   configPath: string;
   onSave: (cfg: AppConfig) => void;
   onCancel: () => void;
+  onQuit: () => void;
 }
 
 type View =
@@ -91,7 +92,7 @@ const orNull = (s: string) => (s.trim() ? s.trim() : null);
 /* ---------- component ---------- */
 
 const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
-  { config, configPath, onSave, onCancel },
+  { config, configPath, onSave, onCancel, onQuit },
   ref
 ) {
   const [draft, setDraft] = useState<AppConfig>(() =>
@@ -138,6 +139,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
     { id: "add", label: "+ Add emulator system" },
     { id: "rescan", label: "Save & rescan library" },
     { id: "cancel", label: "Cancel (discard changes)" },
+    { id: "quit", label: "Exit ArcadeDeck", danger: true },
   ];
 
   /* ----- form rows ----- */
@@ -225,6 +227,8 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       onSave(draft);
     } else if (row.id === "cancel") {
       onCancel();
+    } else if (row.id === "quit") {
+      onQuit();
     }
   };
 

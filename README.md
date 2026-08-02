@@ -25,13 +25,16 @@ To force a MAME title-cache refresh, delete `mame_titles.json` next to the confi
 
 ## Controls
 
-| Input | Action |
-|---|---|
-| Stick / D-pad left–right | Browse the wheel |
-| Stick / D-pad up–down | Skip ×10 |
-| Button 1 (South) / Enter / Z | Launch |
-| Button 2 (East) / Esc / X | Back |
-| Start / 1 | Open settings |
+| Gamepad / arcade stick | Keyboard | Action |
+|---|---|---|
+| Stick or D-pad ◀ ▶ | Arrow keys | Browse the wheel |
+| Stick or D-pad ▲ ▼ | Arrow keys | Skip ×10 |
+| South button (A / ✕) | Enter, Z, Space | Launch |
+| East button (B / ○), tap | Esc or X, tap | Back |
+| East button, **hold 3s** | Esc or X, **hold 3s** | Exit ArcadeDeck |
+| Start, Select, or Guide | 1, 2, or F1 | Open settings |
+
+"Start" means whatever your encoder reports as the gamepad Start button (☰ on Xbox pads, Options on PlayStation). Because cheap encoders disagree about this, the Select and Guide buttons open settings too, and keyboard `1`, `2`, and `F1` all work. Exiting shows a hold-to-confirm bar so it can't happen by accident; there's also an Exit entry at the bottom of the settings menu.
 
 ## Settings menu
 

@@ -114,7 +114,12 @@ fn map_button(button: Button) -> Option<&'static str> {
     match button {
         Button::South => Some("select"),
         Button::East => Some("back"),
+        // Start, Select, and the guide/mode button all open settings —
+        // cheap encoders disagree about which one the physical Start
+        // button reports as, so accept all of them.
         Button::Start => Some("start"),
+        Button::Select => Some("start"),
+        Button::Mode => Some("start"),
         Button::DPadLeft => Some("left"),
         Button::DPadRight => Some("right"),
         Button::DPadUp => Some("up"),

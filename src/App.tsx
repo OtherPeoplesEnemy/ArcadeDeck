@@ -5,7 +5,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import Wheel from "./components/Wheel";
 import AttractMode from "./components/AttractMode";
 import SettingsMenu, { SettingsHandle } from "./components/SettingsMenu";
-import { useInput } from "./hooks/useInput";
+import { useInput, BackHoldPhase } from "./hooks/useInput";
 import type { Action, AppConfig, Game, Mode } from "./types";
 
 const FALLBACK_CONFIG: AppConfig = {
@@ -22,6 +22,7 @@ export default function App() {
   const [mode, setMode] = useState<Mode>("loading");
   const [config, setConfig] = useState<AppConfig>(FALLBACK_CONFIG);
   const [configPath, setConfigPath] = useState("");
+  const [exitWarn, setExitWarn] = useState(false);
 
   const modeRef = useRef(mode);
   modeRef.current = mode;
@@ -158,7 +159,26 @@ export default function App() {
     [launch]
   );
 
-  useInput(onAction);
+  const onBackHold = useCallback((phase: BackHoldPhase) => {
+    lastInputRef.current = Date.now();
+    if (phase === "warn") {
+      // Exit gesture only from the wheel or attract screen — in settings,
+      // Back is navigation.
+      if (modeRef.current === "wheel" || modeRef.current === "attract") {
+        setExitWarn(true);
+      }
+    } else if (phase === "cancel") {
+      setExitWarn(false);
+    } else if (phase === "quit") {
+      if (modeRef.current === "wheel" || modeRef.current === "attract") {
+        invoke("quit_app").catch(() => {});
+      } else {
+        setExitWarn(false);
+      }
+    }
+  }, []);
+
+  useInput({ onAction, onBackHold });
 
   return (
     <div className="app">
@@ -188,6 +208,17 @@ export default function App() {
 
       {mode === "attract" && <AttractMode games={games} />}
 
+      {exitWarn && (
+        <div className="exit-warn">
+          <div className="exit-warn__box">
+            <div className="exit-warn__label">KEEP HOLDING TO EXIT</div>
+            <div className="exit-warn__bar">
+              <div className="exit-warn__fill" />
+            </div>
+          </div>
+        </div>
+      )}
+
       {mode === "settings" && (
         <SettingsMenu
           ref={settingsRef}
@@ -195,6 +226,7 @@ export default function App() {
           configPath={configPath}
           onSave={saveSettings}
           onCancel={() => setMode("wheel")}
+          onQuit={() => invoke("quit_app").catch(() => {})}
         />
       )}
 
@@ -203,7 +235,8 @@ export default function App() {
           <span>◀ ▶ BROWSE</span>
           <span>▲ ▼ SKIP ×10</span>
           <span>Ⓐ LAUNCH</span>
-          <span>START SETTINGS</span>
+          <span>START · 1 SETTINGS</span>
+          <span>HOLD Ⓑ · ESC EXIT</span>
         </footer>
       )}
     </div>
