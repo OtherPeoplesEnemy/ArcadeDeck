@@ -75,7 +75,37 @@ jobs:
             src-tauri/target/release/bundle/rpm/*.rpm
             src-tauri/target/release/bundle/appimage/*.AppImage
 
-  release:
+  # Rolling "latest" release: refreshed with new installers on every green
+  # build of main, so downloads are always one click away.
+  release-latest:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build
+          prerelease: true
+          body: |
+            Automatic build of the newest commit on main.
+            Windows: use the .exe (NSIS) or .msi installer.
+            Linux: .AppImage (portable), .deb, or .rpm.
+          files: |
+            dist/**/*.msi
+            dist/**/*.exe
+            dist/**/*.deb
+            dist/**/*.rpm
+            dist/**/*.AppImage
+
+  # Versioned releases still happen on v* tags for proper milestones.
+  release-tagged:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
