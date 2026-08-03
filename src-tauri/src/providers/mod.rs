@@ -1,5 +1,6 @@
 pub mod fbneo;
 pub mod generic;
+pub mod retroarch;
 pub mod mame;
 pub mod steam;
 
@@ -61,6 +62,13 @@ pub fn scan_all(cfg: &crate::config::AppConfig) -> Vec<Game> {
         match fbneo::scan(fbneo_cfg) {
             Ok(mut g) => games.append(&mut g),
             Err(e) => eprintln!("[fbneo] scan failed: {e}"),
+        }
+    }
+
+    if let Some(ra) = &cfg.retroarch {
+        match retroarch::scan(ra) {
+            Ok(mut g) => games.append(&mut g),
+            Err(e) => eprintln!("[retroarch] scan failed: {e}"),
         }
     }
 

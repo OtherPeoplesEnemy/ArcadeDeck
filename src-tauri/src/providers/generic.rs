@@ -59,7 +59,7 @@ pub fn scan(cfg: &SystemConfig) -> Result<Vec<Game>, String> {
 }
 
 /// Strip common ROM filename noise: "Super Metroid (USA) [!]" -> "Super Metroid".
-fn clean_title(stem: &str) -> String {
+pub fn clean_title(stem: &str) -> String {
     let mut out = String::new();
     let mut depth = 0i32;
     for ch in stem.chars() {

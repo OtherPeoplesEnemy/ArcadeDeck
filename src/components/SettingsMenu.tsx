@@ -11,15 +11,32 @@ import type {
   AppConfig,
   Game,
   MameConfig,
+  RetroArchConfig,
+  RetroSystem,
   SystemConfig,
 } from "../types";
 
 const basename = (p: string) => p.split(/[\\/]/).pop() ?? p;
-
 const pct = (v: number) => `${Math.round(v * 100)}%`;
-
 const stepVol = (v: number, dir: -1 | 1) =>
   Math.min(1, Math.max(0, +(v + dir * 0.1).toFixed(1)));
+const orNull = (s: string) => (s.trim() ? s.trim() : null);
+
+/** Curated RetroArch presets: pick one and only the ROM folder is left. */
+const RETRO_PRESETS = [
+  { name: "NES", core: "mesen", ext: ".nes" },
+  { name: "SNES", core: "snes9x", ext: ".sfc, .smc" },
+  { name: "Genesis / Mega Drive", core: "genesis_plus_gx", ext: ".md, .gen, .bin" },
+  { name: "Game Boy / Color", core: "gambatte", ext: ".gb, .gbc" },
+  { name: "Game Boy Advance", core: "mgba", ext: ".gba" },
+  { name: "Nintendo 64", core: "mupen64plus_next", ext: ".n64, .z64, .v64" },
+  { name: "PlayStation", core: "swanstation", ext: ".cue, .chd, .pbp" },
+  { name: "PC Engine", core: "mednafen_pce_fast", ext: ".pce, .chd" },
+  { name: "Master System", core: "genesis_plus_gx", ext: ".sms" },
+  { name: "Atari 2600", core: "stella", ext: ".a26" },
+  { name: "Dreamcast", core: "flycast", ext: ".chd, .gdi" },
+  { name: "Custom core…", core: "", ext: "" },
+];
 
 export interface SettingsHandle {
   handleAction: (action: Action) => void;
@@ -39,6 +56,9 @@ type View =
   | { kind: "menu" }
   | { kind: "mame" }
   | { kind: "fbneo" }
+  | { kind: "retroarch" }
+  | { kind: "retro-preset" }
+  | { kind: "retro-system"; editIndex: number | null }
   | { kind: "system"; editIndex: number | null }
   | { kind: "games" }
   | { kind: "sgdb" };
@@ -51,10 +71,9 @@ interface Row {
   danger?: boolean;
 }
 
-/* ---------- form state helpers ---------- */
-
 interface FormState {
   name: string;
+  core: string;
   execWin: string;
   execLinux: string;
   args: string;
@@ -67,6 +86,7 @@ interface FormState {
 
 const blankForm = (): FormState => ({
   name: "",
+  core: "",
   execWin: "",
   execLinux: "",
   args: "{rom}",
@@ -78,6 +98,7 @@ const blankForm = (): FormState => ({
 });
 
 const formFromSystem = (s: SystemConfig): FormState => ({
+  ...blankForm(),
   name: s.name,
   execWin: s.emulator.windows ?? "",
   execLinux: s.emulator.linux ?? "",
@@ -91,7 +112,6 @@ const formFromSystem = (s: SystemConfig): FormState => ({
 
 const formFromMame = (m: MameConfig | null): FormState => ({
   ...blankForm(),
-  name: "MAME",
   args: "",
   execWin: m?.executable.windows ?? "",
   execLinux: m?.executable.linux ?? "",
@@ -101,9 +121,25 @@ const formFromMame = (m: MameConfig | null): FormState => ({
   artLinux: m?.art_path.linux ?? "",
 });
 
-const orNull = (s: string) => (s.trim() ? s.trim() : null);
+const formFromRetroArch = (r: RetroArchConfig | null): FormState => ({
+  ...blankForm(),
+  execWin: r?.executable.windows ?? "",
+  execLinux: r?.executable.linux ?? "",
+  // rom fields double as the optional cores-folder fields in this view
+  romWin: r?.cores_path.windows ?? "",
+  romLinux: r?.cores_path.linux ?? "",
+});
 
-/* ---------- component ---------- */
+const formFromRetroSystem = (s: RetroSystem): FormState => ({
+  ...blankForm(),
+  name: s.name,
+  core: s.core,
+  romWin: s.rom_path.windows ?? "",
+  romLinux: s.rom_path.linux ?? "",
+  extensions: s.extensions.join(", "),
+  artWin: s.art_path.windows ?? "",
+  artLinux: s.art_path.linux ?? "",
+});
 
 const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
   { config, configPath, games, onSave, onCancel, onQuit, onFetchArt },
@@ -114,15 +150,17 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
   );
   const [view, setView] = useState<View>({ kind: "menu" });
   const [cursor, setCursor] = useState(0);
-  const [confirmRemove, setConfirmRemove] = useState<number | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(blankForm);
   const [sgdbKey, setSgdbKey] = useState("");
   const [fetchStatus, setFetchStatus] = useState("");
-  const sgdbInputRef = useRef<HTMLInputElement | null>(null);
   const fieldRefs = useRef<(HTMLInputElement | null)[]>([]);
   const rowRefs = useRef<(HTMLLIElement | null)[]>([]);
+  const sgdbInputRef = useRef<HTMLInputElement | null>(null);
 
-  /* ----- menu rows ----- */
+  const retroSystems = draft.retroarch?.systems ?? [];
+
+  /* ---------------- menu rows ---------------- */
 
   const menuRows: Row[] = [
     {
@@ -189,7 +227,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       value: `${draft.sounds.music.length} loaded`,
     },
     ...(draft.sounds.music.length > 0
-      ? [{ id: "music-clear", label: "Clear music tracks", danger: false }]
+      ? [{ id: "music-clear", label: "Clear music tracks" }]
       : []),
     {
       id: "sfx-move",
@@ -200,7 +238,9 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
     {
       id: "sfx-launch",
       label: "Launch sound",
-      value: draft.sounds.sfx_launch ? basename(draft.sounds.sfx_launch) : "built-in",
+      value: draft.sounds.sfx_launch
+        ? basename(draft.sounds.sfx_launch)
+        : "built-in",
       adjustable: true,
     },
     {
@@ -216,7 +256,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
     },
     ...(draft.attract.videos.length > 0
       ? [
-          { id: "videos-clear", label: "Clear attract videos", danger: false },
+          { id: "videos-clear", label: "Clear attract videos" },
           {
             id: "vvol",
             label: "Attract video volume",
@@ -247,13 +287,33 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       label: "FinalBurn Neo",
       value: draft.fbneo ? "configured" : "not set up",
     },
+    {
+      id: "retroarch",
+      label: "RetroArch",
+      value: draft.retroarch?.executable.windows || draft.retroarch?.executable.linux
+        ? "configured"
+        : "not set up",
+    },
+    ...retroSystems.map((s, i) => ({
+      id: `retro-${i}`,
+      label: `RetroArch: ${s.name}`,
+      value:
+        confirmRemove === `retro-${i}`
+          ? "press Ⓐ / click again to remove"
+          : "edit · ◀ remove",
+      danger: confirmRemove === `retro-${i}`,
+    })),
+    { id: "retro-add", label: "+ Add RetroArch system" },
     ...draft.systems.map((s, i) => ({
       id: `sys-${i}`,
       label: `System: ${s.name}`,
-      value: confirmRemove === i ? "press Ⓐ / click again to remove" : "edit · ◀ remove",
-      danger: confirmRemove === i,
+      value:
+        confirmRemove === `sys-${i}`
+          ? "press Ⓐ / click again to remove"
+          : "edit · ◀ remove",
+      danger: confirmRemove === `sys-${i}`,
     })),
-    { id: "add", label: "+ Add emulator system" },
+    { id: "add", label: "+ Add emulator system (custom)" },
     {
       id: "games",
       label: "Manage game list",
@@ -264,7 +324,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
     { id: "quit", label: "Exit ArcadeDeck", danger: true },
   ];
 
-  /* ----- form rows ----- */
+  /* ---------------- form field sets ---------------- */
 
   const formFields: { key: keyof FormState; label: string; ph?: string }[] =
     view.kind === "mame" || view.kind === "fbneo"
@@ -284,22 +344,64 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
           { key: "artWin", label: "Art folder (Windows)" },
           { key: "artLinux", label: "Art folder (Linux)" },
         ]
-      : [
-          { key: "name", label: "System name", ph: "SNES" },
-          { key: "execWin", label: "Emulator (Windows)", ph: "C:\\RetroArch\\retroarch.exe" },
-          { key: "execLinux", label: "Emulator (Linux)", ph: "/usr/bin/retroarch" },
-          { key: "args", label: "Arguments ({rom} = ROM path)", ph: "-L snes9x_libretro {rom} -f" },
-          { key: "romWin", label: "ROM folder (Windows)" },
-          { key: "romLinux", label: "ROM folder (Linux)" },
-          { key: "extensions", label: "Extensions (comma separated)", ph: ".sfc, .smc" },
-          { key: "artWin", label: "Art folder (Windows)" },
-          { key: "artLinux", label: "Art folder (Linux)" },
-        ];
+      : view.kind === "retroarch"
+        ? [
+            {
+              key: "execWin",
+              label: "RetroArch exe (Windows)",
+              ph: "C:\\RetroArch-Win64\\retroarch.exe",
+            },
+            {
+              key: "execLinux",
+              label: "RetroArch binary (Linux)",
+              ph: "/usr/bin/retroarch",
+            },
+            {
+              key: "romWin",
+              label: "Cores folder (Windows) — optional",
+              ph: "auto: <exe folder>\\cores",
+            },
+            {
+              key: "romLinux",
+              label: "Cores folder (Linux) — optional",
+              ph: "auto: ~/.config/retroarch/cores",
+            },
+          ]
+        : view.kind === "retro-system"
+          ? [
+              { key: "name", label: "System name", ph: "SNES" },
+              {
+                key: "core",
+                label: "Core (without _libretro suffix)",
+                ph: "snes9x",
+              },
+              { key: "romWin", label: "ROM folder (Windows)" },
+              { key: "romLinux", label: "ROM folder (Linux)" },
+              { key: "extensions", label: "Extensions (comma separated)", ph: ".sfc, .smc" },
+              { key: "artWin", label: "Art folder (Windows)" },
+              { key: "artLinux", label: "Art folder (Linux)" },
+            ]
+          : [
+              { key: "name", label: "System name", ph: "Dolphin" },
+              { key: "execWin", label: "Emulator (Windows)", ph: "C:\\Dolphin\\Dolphin.exe" },
+              { key: "execLinux", label: "Emulator (Linux)", ph: "/usr/bin/dolphin-emu" },
+              {
+                key: "args",
+                label: "Arguments ({rom} = ROM path)",
+                ph: "-b -e {rom}",
+              },
+              { key: "romWin", label: "ROM folder (Windows)" },
+              { key: "romLinux", label: "ROM folder (Linux)" },
+              { key: "extensions", label: "Extensions (comma separated)", ph: ".iso, .rvz" },
+              { key: "artWin", label: "Art folder (Windows)" },
+              { key: "artLinux", label: "Art folder (Linux)" },
+            ];
 
   const formRowCount = formFields.length + 2; // + Save, Back
   const gamesRowCount = games.length + 1; // + Back
+  const presetRowCount = RETRO_PRESETS.length + 1; // + Back
 
-  /* ----- actions ----- */
+  /* ---------------- actions ---------------- */
 
   const toggleHidden = (game: Game) => {
     setDraft((d) => {
@@ -309,6 +411,13 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       return { ...d, hidden_games: hidden };
     });
   };
+
+  const ensureRetroArch = (d: AppConfig): RetroArchConfig =>
+    d.retroarch ?? {
+      executable: { windows: null, linux: null },
+      cores_path: { windows: null, linux: null },
+      systems: [],
+    };
 
   const commitForm = () => {
     if (view.kind === "mame" || view.kind === "fbneo") {
@@ -322,6 +431,43 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       setDraft((d) =>
         which === "mame" ? { ...d, mame: entry } : { ...d, fbneo: entry }
       );
+    } else if (view.kind === "retroarch") {
+      setDraft((d) => {
+        const ra = ensureRetroArch(d);
+        return {
+          ...d,
+          retroarch: {
+            ...ra,
+            executable: {
+              windows: orNull(form.execWin),
+              linux: orNull(form.execLinux),
+            },
+            cores_path: {
+              windows: orNull(form.romWin),
+              linux: orNull(form.romLinux),
+            },
+          },
+        };
+      });
+    } else if (view.kind === "retro-system") {
+      const editIndex = view.editIndex;
+      const sys: RetroSystem = {
+        name: form.name.trim() || "Custom",
+        core: form.core.trim(),
+        rom_path: { windows: orNull(form.romWin), linux: orNull(form.romLinux) },
+        extensions: form.extensions
+          .split(",")
+          .map((e) => e.trim())
+          .filter(Boolean),
+        art_path: { windows: orNull(form.artWin), linux: orNull(form.artLinux) },
+      };
+      setDraft((d) => {
+        const ra = ensureRetroArch(d);
+        const systems = [...ra.systems];
+        if (editIndex === null) systems.push(sys);
+        else systems[editIndex] = sys;
+        return { ...d, retroarch: { ...ra, systems } };
+      });
     } else if (view.kind === "system") {
       const editIndex = view.editIndex;
       const sys: SystemConfig = {
@@ -399,10 +545,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
           ],
         }).catch(() => null);
         if (typeof file === "string") {
-          setDraft((d) => ({
-            ...d,
-            ui: { ...d.ui, background_image: file },
-          }));
+          setDraft((d) => ({ ...d, ui: { ...d.ui, background_image: file } }));
         }
       })();
       return;
@@ -417,7 +560,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       row.id === "svol" ||
       row.id === "vvol"
     ) {
-      adjustMenuRow(row, 1); // mouse click cycles adjustable rows
+      adjustMenuRow(row, 1);
     } else if (row.id === "music-add") {
       void pickMusic();
     } else if (row.id === "music-clear") {
@@ -445,21 +588,47 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       setView({ kind: "sgdb" });
       setCursor(0);
     } else if (row.id === "mame") {
-      setForm(formFromMame(draft.mame));
+      setForm({ ...formFromMame(draft.mame) });
       setView({ kind: "mame" });
       setCursor(0);
     } else if (row.id === "fbneo") {
-      setForm(formFromMame(draft.fbneo));
+      setForm({ ...formFromMame(draft.fbneo) });
       setView({ kind: "fbneo" });
       setCursor(0);
-    } else if (row.id === "add") {
-      setForm(blankForm());
-      setView({ kind: "system", editIndex: null });
+    } else if (row.id === "retroarch") {
+      setForm(formFromRetroArch(draft.retroarch));
+      setView({ kind: "retroarch" });
       setCursor(0);
+    } else if (row.id === "retro-add") {
+      setView({ kind: "retro-preset" });
+      setCursor(0);
+    } else if (row.id.startsWith("retro-")) {
+      const i = Number(row.id.slice(6));
+      if (confirmRemove === row.id) {
+        setDraft((d) => {
+          const ra = ensureRetroArch(d);
+          return {
+            ...d,
+            retroarch: {
+              ...ra,
+              systems: ra.systems.filter((_, j) => j !== i),
+            },
+          };
+        });
+        setConfirmRemove(null);
+        setCursor((c) => Math.max(0, c - 1));
+      } else {
+        setForm(formFromRetroSystem(retroSystems[i]));
+        setView({ kind: "retro-system", editIndex: i });
+        setCursor(0);
+      }
     } else if (row.id.startsWith("sys-")) {
       const i = Number(row.id.slice(4));
-      if (confirmRemove === i) {
-        setDraft((d) => ({ ...d, systems: d.systems.filter((_, j) => j !== i) }));
+      if (confirmRemove === row.id) {
+        setDraft((d) => ({
+          ...d,
+          systems: d.systems.filter((_, j) => j !== i),
+        }));
         setConfirmRemove(null);
         setCursor((c) => Math.max(0, c - 1));
       } else {
@@ -467,6 +636,10 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
         setView({ kind: "system", editIndex: i });
         setCursor(0);
       }
+    } else if (row.id === "add") {
+      setForm(blankForm());
+      setView({ kind: "system", editIndex: null });
+      setCursor(0);
     } else if (row.id === "games") {
       setView({ kind: "games" });
       setCursor(0);
@@ -533,18 +706,25 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
         ...d,
         ui: {
           ...d.ui,
-          tile_scale: Math.min(1.4, Math.max(0.7, +(d.ui.tile_scale + dir * 0.1).toFixed(1))),
+          tile_scale: Math.min(
+            1.4,
+            Math.max(0.7, +(d.ui.tile_scale + dir * 0.1).toFixed(1))
+          ),
         },
       }));
-    } else if (row.id.startsWith("sys-") && dir === -1) {
-      setConfirmRemove(Number(row.id.slice(4)));
+    } else if (
+      (row.id.startsWith("sys-") || row.id.startsWith("retro-")) &&
+      row.id !== "retro-add" &&
+      dir === -1
+    ) {
+      setConfirmRemove(row.id);
     }
   };
 
   useImperativeHandle(ref, () => ({
     handleAction(action: Action) {
       if (view.kind === "menu") {
-        setConfirmRemove((c) => (action === "select" ? c : null));
+        if (action !== "select") setConfirmRemove(null);
         if (action === "up") setCursor((c) => (c - 1 + menuRows.length) % menuRows.length);
         else if (action === "down") setCursor((c) => (c + 1) % menuRows.length);
         else if (action === "left") adjustMenuRow(menuRows[cursor], -1);
@@ -560,6 +740,20 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
             setCursor(0);
           } else {
             toggleHidden(games[cursor]);
+          }
+        } else if (action === "back") {
+          setView({ kind: "menu" });
+          setCursor(0);
+        }
+      } else if (view.kind === "retro-preset") {
+        if (action === "up") setCursor((c) => (c - 1 + presetRowCount) % presetRowCount);
+        else if (action === "down") setCursor((c) => (c + 1) % presetRowCount);
+        else if (action === "select") {
+          if (cursor === RETRO_PRESETS.length) {
+            setView({ kind: "menu" });
+            setCursor(0);
+          } else {
+            applyPreset(cursor);
           }
         } else if (action === "back") {
           setView({ kind: "menu" });
@@ -587,7 +781,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
           setCursor(0);
         }
       } else {
-        // form view
+        // form views
         if (action === "up") setCursor((c) => (c - 1 + formRowCount) % formRowCount);
         else if (action === "down") setCursor((c) => (c + 1) % formRowCount);
         else if (action === "select") {
@@ -596,7 +790,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
             setView({ kind: "menu" });
             setCursor(0);
           } else {
-            setCursor((c) => c + 1); // Enter on a field: next row
+            setCursor((c) => c + 1);
           }
         } else if (action === "back") {
           setView({ kind: "menu" });
@@ -606,21 +800,39 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
     },
   }));
 
-  /* ----- focus / scroll management ----- */
+  const applyPreset = (i: number) => {
+    const p = RETRO_PRESETS[i];
+    setForm({
+      ...blankForm(),
+      name: p.core ? p.name : "",
+      core: p.core,
+      extensions: p.ext,
+    });
+    setView({ kind: "retro-system", editIndex: null });
+    setCursor(0);
+  };
+
+  /* ---------------- focus / scroll ---------------- */
 
   useEffect(() => {
-    if (view.kind === "mame" || view.kind === "fbneo" || view.kind === "system") {
+    const isForm =
+      view.kind === "mame" ||
+      view.kind === "fbneo" ||
+      view.kind === "retroarch" ||
+      view.kind === "retro-system" ||
+      view.kind === "system";
+    if (isForm) {
       if (cursor < formFields.length) fieldRefs.current[cursor]?.focus();
       else (document.activeElement as HTMLElement | null)?.blur();
     } else if (view.kind === "sgdb") {
       if (cursor === 0) sgdbInputRef.current?.focus();
       else (document.activeElement as HTMLElement | null)?.blur();
-    } else if (view.kind === "games" || view.kind === "menu") {
+    } else {
       rowRefs.current[cursor]?.scrollIntoView({ block: "nearest" });
     }
   }, [view.kind, cursor, formFields.length]);
 
-  /* ----- render ----- */
+  /* ---------------- render ---------------- */
 
   const header = (title: string) => (
     <div className="settings__headrow">
@@ -666,7 +878,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
                         adjustMenuRow(row, -1);
                       }}
                     >
-                      ◀
+                      {"◀"}
                     </button>
                   )}
                   {row.value}
@@ -678,7 +890,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
                         adjustMenuRow(row, 1);
                       }}
                     >
-                      ▶
+                      {"▶"}
                     </button>
                   )}
                 </span>
@@ -697,8 +909,8 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
         <div className="settings__panel">
           {header("MANAGE GAME LIST")}
           <div className="settings__note">
-            Click or press Ⓐ to hide/unhide a game. Hidden games stay installed —
-            they just leave the wheel.
+            Click or press Ⓐ to hide/unhide a game. Hidden games stay
+            installed — they just leave the wheel.
           </div>
           <ul className="settings__list settings__list--scroll">
             {games.map((g, i) => {
@@ -744,15 +956,61 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
     );
   }
 
+  if (view.kind === "retro-preset") {
+    return (
+      <div className="settings">
+        <div className="settings__panel">
+          {header("ADD RETROARCH SYSTEM")}
+          <div className="settings__note">
+            Pick a system — the core and file extensions are prefilled,
+            you just add the ROM folder. Cores must be installed in RetroArch
+            (Online Updater → Core Downloader).
+          </div>
+          <ul className="settings__list settings__list--scroll">
+            {RETRO_PRESETS.map((p, i) => (
+              <li
+                key={p.name}
+                ref={(el) => {
+                  rowRefs.current[i] = el;
+                }}
+                className={`settings__row ${i === cursor ? "settings__row--active" : ""}`}
+                onMouseEnter={() => setCursor(i)}
+                onClick={() => applyPreset(i)}
+              >
+                <span>{p.name}</span>
+                <span className="settings__value">{p.core || "—"}</span>
+              </li>
+            ))}
+            <li
+              ref={(el) => {
+                rowRefs.current[RETRO_PRESETS.length] = el;
+              }}
+              className={`settings__row ${
+                cursor === RETRO_PRESETS.length ? "settings__row--active" : ""
+              }`}
+              onMouseEnter={() => setCursor(RETRO_PRESETS.length)}
+              onClick={() => {
+                setView({ kind: "menu" });
+                setCursor(0);
+              }}
+            >
+              <span>Back</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    );
+  }
+
   if (view.kind === "sgdb") {
     return (
       <div className="settings">
         <div className="settings__panel">
           {header("STEAMGRIDDB")}
           <div className="settings__note">
-            Free API key from steamgriddb.com → Profile → Preferences → API.
-            Enables artwork search for MAME and emulator games; Steam games
-            work without it.
+            Free API key from steamgriddb.com → Profile → Preferences
+            → API. Enables artwork search for MAME, FBNeo, and emulator
+            games; Steam games work without it.
           </div>
           <ul className="settings__list">
             <li
@@ -799,23 +1057,42 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
     );
   }
 
+  const formTitle =
+    view.kind === "mame"
+      ? "MAME SETUP"
+      : view.kind === "fbneo"
+        ? "FINALBURN NEO SETUP"
+        : view.kind === "retroarch"
+          ? "RETROARCH SETUP"
+          : view.kind === "retro-system"
+            ? view.editIndex === null
+              ? "ADD RETROARCH SYSTEM"
+              : "EDIT RETROARCH SYSTEM"
+            : view.kind === "system" && view.editIndex === null
+              ? "ADD SYSTEM"
+              : "EDIT SYSTEM";
+
+  const formNote =
+    view.kind === "fbneo"
+      ? "Also set the same ROM folder inside FBNeo itself (it loads ROMs via its own paths). Use FBNeo-compatible romsets."
+      : view.kind === "retroarch"
+        ? "Configure once; then add systems from presets. Cores folder is auto-detected if left blank."
+        : "Type or paste paths. Leave a platform's paths blank if unused.";
+
+  const saveLabel =
+    view.kind === "mame"
+      ? "MAME setup"
+      : view.kind === "fbneo"
+        ? "FBNeo setup"
+        : view.kind === "retroarch"
+          ? "RetroArch setup"
+          : "system";
+
   return (
     <div className="settings">
       <div className="settings__panel">
-        {header(
-          view.kind === "mame"
-            ? "MAME SETUP"
-            : view.kind === "fbneo"
-              ? "FINALBURN NEO SETUP"
-              : view.editIndex === null
-              ? "ADD SYSTEM"
-              : "EDIT SYSTEM"
-        )}
-        <div className="settings__note">
-          {view.kind === "fbneo"
-            ? "Also set the same ROM folder inside FBNeo itself (it loads ROMs via its own paths). Use FBNeo-compatible romsets."
-            : "Type or paste paths. Leave a platform's paths blank if unused."}
-        </div>
+        {header(formTitle)}
+        <div className="settings__note">{formNote}</div>
         <ul className="settings__list">
           {formFields.map((f, i) => (
             <li
@@ -846,7 +1123,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
             onMouseEnter={() => setCursor(formFields.length)}
             onClick={commitForm}
           >
-            <span>Save {view.kind === "mame" ? "MAME setup" : view.kind === "fbneo" ? "FBNeo setup" : "system"}</span>
+            <span>Save {saveLabel}</span>
           </li>
           <li
             className={`settings__row ${

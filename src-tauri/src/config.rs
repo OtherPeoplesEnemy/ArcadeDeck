@@ -48,6 +48,30 @@ pub struct MameConfig {
 /// FBNeo uses the same fields as MAME (executable, ROM folder, art folder).
 pub type FbneoConfig = MameConfig;
 
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct RetroArchConfig {
+    #[serde(default)]
+    pub executable: PlatformPath,
+    /// Optional: where cores live. Defaults to `<exe dir>/cores` on Windows
+    /// and the standard locations on Linux.
+    #[serde(default)]
+    pub cores_path: PlatformPath,
+    #[serde(default)]
+    pub systems: Vec<RetroSystem>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct RetroSystem {
+    pub name: String,
+    /// Core name without suffix, e.g. "snes9x" -> snes9x_libretro.dll/.so
+    pub core: String,
+    pub rom_path: PlatformPath,
+    #[serde(default)]
+    pub extensions: Vec<String>,
+    #[serde(default)]
+    pub art_path: PlatformPath,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SystemConfig {
     pub name: String,
@@ -100,6 +124,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub fbneo: Option<FbneoConfig>,
     #[serde(default)]
+    pub retroarch: Option<RetroArchConfig>,
+    #[serde(default)]
     pub systems: Vec<SystemConfig>,
     /// Seconds of inactivity before attract mode starts.
     #[serde(default = "default_attract_secs")]
@@ -124,6 +150,7 @@ impl Default for AppConfig {
             steam: SteamConfig::default(),
             mame: None,
             fbneo: None,
+            retroarch: None,
             systems: Vec::new(),
             // The derived Default gave 0 here, which made attract mode
             // trigger instantly. Never again.

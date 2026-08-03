@@ -39,6 +39,20 @@ export interface MameConfig {
   extra_args: string[];
 }
 
+export interface RetroSystem {
+  name: string;
+  core: string;
+  rom_path: PlatformPath;
+  extensions: string[];
+  art_path: PlatformPath;
+}
+
+export interface RetroArchConfig {
+  executable: PlatformPath;
+  cores_path: PlatformPath;
+  systems: RetroSystem[];
+}
+
 export interface SystemConfig {
   name: string;
   emulator: PlatformPath;
@@ -73,6 +87,7 @@ export interface AppConfig {
   steam: SteamConfig;
   mame: MameConfig | null;
   fbneo: MameConfig | null;
+  retroarch: RetroArchConfig | null;
   systems: SystemConfig[];
   attract_after_secs: number;
   ui: UiConfig;
