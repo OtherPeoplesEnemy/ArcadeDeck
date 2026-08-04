@@ -53,6 +53,13 @@ export interface RetroArchConfig {
   systems: RetroSystem[];
 }
 
+export interface AppEntry {
+  name: string;
+  executable: PlatformPath;
+  args: string[];
+  category: string | null;
+}
+
 export interface SystemConfig {
   name: string;
   emulator: PlatformPath;
@@ -88,6 +95,7 @@ export interface AppConfig {
   mame: MameConfig | null;
   fbneo: MameConfig | null;
   retroarch: RetroArchConfig | null;
+  apps: AppEntry[];
   systems: SystemConfig[];
   attract_after_secs: number;
   ui: UiConfig;

@@ -9,6 +9,7 @@ import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import type {
   Action,
   AppConfig,
+  AppEntry,
   Game,
   MameConfig,
   RetroArchConfig,
@@ -59,6 +60,7 @@ type View =
   | { kind: "retroarch" }
   | { kind: "retro-preset" }
   | { kind: "retro-system"; editIndex: number | null }
+  | { kind: "app"; editIndex: number | null }
   | { kind: "system"; editIndex: number | null }
   | { kind: "games" }
   | { kind: "sgdb" };
@@ -74,6 +76,7 @@ interface Row {
 interface FormState {
   name: string;
   core: string;
+  category: string;
   execWin: string;
   execLinux: string;
   args: string;
@@ -87,6 +90,7 @@ interface FormState {
 const blankForm = (): FormState => ({
   name: "",
   core: "",
+  category: "",
   execWin: "",
   execLinux: "",
   args: "{rom}",
@@ -128,6 +132,15 @@ const formFromRetroArch = (r: RetroArchConfig | null): FormState => ({
   // rom fields double as the optional cores-folder fields in this view
   romWin: r?.cores_path.windows ?? "",
   romLinux: r?.cores_path.linux ?? "",
+});
+
+const formFromApp = (a: AppEntry): FormState => ({
+  ...blankForm(),
+  name: a.name,
+  category: a.category ?? "",
+  execWin: a.executable.windows ?? "",
+  execLinux: a.executable.linux ?? "",
+  args: a.args.join(" "),
 });
 
 const formFromRetroSystem = (s: RetroSystem): FormState => ({
@@ -304,6 +317,16 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       danger: confirmRemove === `retro-${i}`,
     })),
     { id: "retro-add", label: "+ Add RetroArch system" },
+    ...draft.apps.map((a, i) => ({
+      id: `app-${i}`,
+      label: `App: ${a.name}`,
+      value:
+        confirmRemove === `app-${i}`
+          ? "press Ⓐ / click again to remove"
+          : "edit · ◀ remove",
+      danger: confirmRemove === `app-${i}`,
+    })),
+    { id: "app-add", label: "+ Add app shortcut (Fightcade, Kodi…)" },
     ...draft.systems.map((s, i) => ({
       id: `sys-${i}`,
       label: `System: ${s.name}`,
@@ -381,7 +404,23 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
               { key: "artWin", label: "Art folder (Windows)" },
               { key: "artLinux", label: "Art folder (Linux)" },
             ]
-          : [
+          : view.kind === "app"
+            ? [
+                { key: "name", label: "App name", ph: "Fightcade" },
+                {
+                  key: "execWin",
+                  label: "Executable (Windows)",
+                  ph: "C:\\Fightcade\\Fightcade2.exe",
+                },
+                {
+                  key: "execLinux",
+                  label: "Executable (Linux)",
+                  ph: "/home/payman/Fightcade/Fightcade2.sh",
+                },
+                { key: "args", label: "Arguments (optional)" },
+                { key: "category", label: "Wheel category (optional)", ph: "Apps" },
+              ]
+            : [
               { key: "name", label: "System name", ph: "Dolphin" },
               { key: "execWin", label: "Emulator (Windows)", ph: "C:\\Dolphin\\Dolphin.exe" },
               { key: "execLinux", label: "Emulator (Linux)", ph: "/usr/bin/dolphin-emu" },
@@ -467,6 +506,23 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
         if (editIndex === null) systems.push(sys);
         else systems[editIndex] = sys;
         return { ...d, retroarch: { ...ra, systems } };
+      });
+    } else if (view.kind === "app") {
+      const editIndex = view.editIndex;
+      const entry: AppEntry = {
+        name: form.name.trim() || "App",
+        executable: {
+          windows: orNull(form.execWin),
+          linux: orNull(form.execLinux),
+        },
+        args: form.args.trim() === "{rom}" ? [] : form.args.trim().split(/\s+/).filter(Boolean),
+        category: orNull(form.category),
+      };
+      setDraft((d) => {
+        const apps = [...d.apps];
+        if (editIndex === null) apps.push(entry);
+        else apps[editIndex] = entry;
+        return { ...d, apps };
       });
     } else if (view.kind === "system") {
       const editIndex = view.editIndex;
@@ -622,6 +678,21 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
         setView({ kind: "retro-system", editIndex: i });
         setCursor(0);
       }
+    } else if (row.id === "app-add") {
+      setForm(blankForm());
+      setView({ kind: "app", editIndex: null });
+      setCursor(0);
+    } else if (row.id.startsWith("app-")) {
+      const i = Number(row.id.slice(4));
+      if (confirmRemove === row.id) {
+        setDraft((d) => ({ ...d, apps: d.apps.filter((_, j) => j !== i) }));
+        setConfirmRemove(null);
+        setCursor((c) => Math.max(0, c - 1));
+      } else {
+        setForm(formFromApp(draft.apps[i]));
+        setView({ kind: "app", editIndex: i });
+        setCursor(0);
+      }
     } else if (row.id.startsWith("sys-")) {
       const i = Number(row.id.slice(4));
       if (confirmRemove === row.id) {
@@ -713,8 +784,11 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
         },
       }));
     } else if (
-      (row.id.startsWith("sys-") || row.id.startsWith("retro-")) &&
+      (row.id.startsWith("sys-") ||
+        row.id.startsWith("retro-") ||
+        row.id.startsWith("app-")) &&
       row.id !== "retro-add" &&
+      row.id !== "app-add" &&
       dir === -1
     ) {
       setConfirmRemove(row.id);
@@ -820,6 +894,7 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       view.kind === "fbneo" ||
       view.kind === "retroarch" ||
       view.kind === "retro-system" ||
+      view.kind === "app" ||
       view.kind === "system";
     if (isForm) {
       if (cursor < formFields.length) fieldRefs.current[cursor]?.focus();
@@ -1068,6 +1143,10 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
             ? view.editIndex === null
               ? "ADD RETROARCH SYSTEM"
               : "EDIT RETROARCH SYSTEM"
+            : view.kind === "app"
+              ? view.editIndex === null
+                ? "ADD APP SHORTCUT"
+                : "EDIT APP SHORTCUT"
             : view.kind === "system" && view.editIndex === null
               ? "ADD SYSTEM"
               : "EDIT SYSTEM";
@@ -1077,7 +1156,9 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
       ? "Also set the same ROM folder inside FBNeo itself (it loads ROMs via its own paths). Use FBNeo-compatible romsets."
       : view.kind === "retroarch"
         ? "Configure once; then add systems from presets. Cores folder is auto-detected if left blank."
-        : "Type or paste paths. Leave a platform's paths blank if unused.";
+        : view.kind === "app"
+          ? "Any program as a wheel entry. Right-click its tile later to set an icon image."
+          : "Type or paste paths. Leave a platform's paths blank if unused.";
 
   const saveLabel =
     view.kind === "mame"
@@ -1086,7 +1167,9 @@ const SettingsMenu = forwardRef<SettingsHandle, Props>(function SettingsMenu(
         ? "FBNeo setup"
         : view.kind === "retroarch"
           ? "RetroArch setup"
-          : "system";
+          : view.kind === "app"
+            ? "app shortcut"
+            : "system";
 
   return (
     <div className="settings">

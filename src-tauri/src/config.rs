@@ -72,6 +72,18 @@ pub struct RetroSystem {
     pub art_path: PlatformPath,
 }
 
+/// A standalone application shown on the wheel (Fightcade, Kodi, a browser…).
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AppEntry {
+    pub name: String,
+    pub executable: PlatformPath,
+    #[serde(default)]
+    pub args: Vec<String>,
+    /// Wheel category; defaults to "Apps".
+    #[serde(default)]
+    pub category: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SystemConfig {
     pub name: String,
@@ -126,6 +138,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub retroarch: Option<RetroArchConfig>,
     #[serde(default)]
+    pub apps: Vec<AppEntry>,
+    #[serde(default)]
     pub systems: Vec<SystemConfig>,
     /// Seconds of inactivity before attract mode starts.
     #[serde(default = "default_attract_secs")]
@@ -151,6 +165,7 @@ impl Default for AppConfig {
             mame: None,
             fbneo: None,
             retroarch: None,
+            apps: Vec::new(),
             systems: Vec::new(),
             // The derived Default gave 0 here, which made attract mode
             // trigger instantly. Never again.

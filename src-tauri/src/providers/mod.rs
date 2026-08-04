@@ -1,3 +1,4 @@
+pub mod apps;
 pub mod fbneo;
 pub mod generic;
 pub mod retroarch;
@@ -71,6 +72,8 @@ pub fn scan_all(cfg: &crate::config::AppConfig) -> Vec<Game> {
             Err(e) => eprintln!("[retroarch] scan failed: {e}"),
         }
     }
+
+    games.append(&mut apps::scan(&cfg.apps));
 
     for system in &cfg.systems {
         match generic::scan(system) {

@@ -15,6 +15,7 @@ const FALLBACK_CONFIG: AppConfig = {
   mame: null,
   fbneo: null,
   retroarch: null,
+  apps: [],
   systems: [],
   attract_after_secs: 45,
   ui: { tile_scale: 1.0, background: "grid", background_image: null },
